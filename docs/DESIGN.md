@@ -73,8 +73,11 @@ manually / in a real environment.
 
 1. **Task 1 — Skeleton & build** ✅ pom + fat jar + logback; `MessageTransform` + both
    in-JVM tests green. `IngestionJob.main` is a placeholder.
-2. **Task 2 — Config model & loading.** The `@Value` classes above + YAML parse + validation
-   + password-from-env + unit tests.
+2. **Task 2 — Config model & loading** ✅ `@Value` `@Jacksonized` classes
+   ([config package](../src/main/java/com/yourteam/ingestion/config)) + `ConfigLoader`
+   (snake_case YAML via jackson-dataformat-yaml) + fail-fast validation collecting every
+   missing field + password read from the env var named by `password_env`. See
+   [examples/job-config.yaml](../examples/job-config.yaml). Unit tests in `ConfigLoaderTest`.
 3. **Task 3 — Wire `IngestionJob.main`** end to end (see component flow).
 4. **Task 4 — Error handling / retry.**
 5. **Task 5 — Metrics + structured (JSON) logging.**

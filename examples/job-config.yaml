@@ -1,0 +1,27 @@
+# Example job config. Copy & edit per job, then (after Task 3) launch with:
+#   DORIS_PASSWORD=... java -jar target/spark-doris-ingestion.jar /path/to/job-config.yaml
+#
+# The same fat jar runs any job — only this file changes.
+
+kafka:
+  bootstrap_servers: "kafka-1:9092,kafka-2:9092"
+  topic: "orders"
+  starting_offsets: "latest"          # optional, default: latest
+  max_offsets_per_trigger: 100000     # optional, omit for unbounded
+
+doris:
+  fenodes: "doris-fe:8030"
+  database: "ods"
+  table: "orders_raw"                 # must have the fixed 7-column layout
+  user: "ingest"
+  password_env: "DORIS_PASSWORD"      # name of the env var holding the password (never inline it)
+  options:                            # optional, passed through to the Doris writer
+    sink.batch.size: "100000"
+    sink.max-retries: "3"
+
+spark:
+  checkpoint_location: "s3a://my-bucket/checkpoints/orders"
+  output_mode: "append"               # optional, default: append
+  trigger: "30 seconds"               # optional: "30 seconds" | "once" | "availableNow" | omit
+  extra_conf:                         # optional, applied as spark.conf().set(k, v)
+    spark.sql.shuffle.partitions: "8"

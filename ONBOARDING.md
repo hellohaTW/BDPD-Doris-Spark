@@ -150,11 +150,16 @@ is real and reusable; `IngestionJob.main` is still a placeholder.
 > (`getOrCreate()` reuses the first test's SparkSession, so consecutive SparkSessions in one
 > JVM are fine — the thing left open last session.) Fat jar = 104 MB as before.
 
+**Task 2 — DONE (2026-05-29):** immutable `@Value @Jacksonized` classes (`JobConfig`,
+`KafkaConfig`, `DorisConfig`, `SparkStreamingConfig`) in `com.yourteam.ingestion.config`;
+`ConfigLoader` parses snake_case YAML via `jackson-dataformat-yaml` (SNAKE_CASE naming
+strategy, unknown keys ignored); `JobConfig.validate()` fails fast collecting *every* missing
+field; `DorisConfig.resolvePassword(env)` reads the password from the env var named by
+`password_env` (never in YAML). Example: `examples/job-config.yaml`. `ConfigLoaderTest` (5
+tests) green; full suite now 8 tests green.
+
 **Next, in order:**
-1. **Task 2 — Config model & loading:** immutable `@Value` classes (`JobConfig`, `KafkaConfig`,
-   `DorisConfig`, `SparkStreamingConfig`); parse YAML via `jackson-dataformat-yaml`; validate
-   required fields; read Doris password from the env var named by `password_env`; unit tests.
-2. **Task 3 — Wire the real `IngestionJob.main`:** load config → SparkSession (apply
+1. **Task 3 — Wire the real `IngestionJob.main`:** load config → SparkSession (apply
    `spark.extra_conf`) → Kafka `readStream` (bootstrap/topic/startingOffsets/maxOffsetsPerTrigger,
    `includeHeaders=true`) → `MessageTransform.toDorisColumns` → Doris `writeStream` (fenodes,
    db.table, user, password, extra options) → checkpoint/trigger/output mode + shutdown hook.
