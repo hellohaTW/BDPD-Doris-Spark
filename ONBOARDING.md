@@ -1,0 +1,166 @@
+# Spark → Doris Ingestion — Onboarding / Resume Point
+
+This guide lets a fresh Claude Code session recreate and continue this project from
+its current state. It captures the design, the exact versions that work together, the
+environment gotchas, and the in-JVM validation approach (no Docker, no real Doris).
+
+---
+
+## 1. What the project is
+
+A **generic Spark Structured Streaming job** that reads Kafka messages and writes them
+**verbatim** (schema-agnostic — the payload is never parsed) into Doris. One fat jar,
+many jobs: behaviour is driven entirely by an external YAML config (topic / table /
+cluster). All Doris tables share a fixed layout: six `kafka_*` columns + `ingestion_time`.
+
+Full design lives in `docs/DESIGN.md`; build/process rules in `CLAUDE.md`.
+Develop **one Task at a time** (Task 1→6), confirming with the user between tasks.
+
+Doris columns (target layout, in DDL order):
+`kafka_timestamp, kafka_partition, kafka_offset, kafka_key, kafka_value, kafka_headers, ingestion_time`
+
+---
+
+## 2. Environment gotchas (the hard-won bits)
+
+- **No `mvn` on PATH.** Use IntelliJ's bundled Maven 3.9.6:
+  ```bash
+  export PATH="/opt/idea-IC-241.17011.79/plugins/maven/lib/maven3/bin:$PATH"
+  export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
+  ```
+- **No Docker** — do not use Testcontainers. Simulate Kafka in-JVM with `embedded-kafka`.
+- **Spark on Java 11 needs `--add-opens`** or tests/jobs hit `InaccessibleObjectException`:
+  ```bash
+  export MAVEN_OPTS="--add-opens=java.base/sun.nio.ch=ALL-UNNAMED \
+    --add-opens=java.base/java.nio=ALL-UNNAMED \
+    --add-opens=java.base/java.lang=ALL-UNNAMED \
+    --add-opens=java.base/java.util=ALL-UNNAMED"
+  ```
+- **`provided` Spark deps are on the TEST classpath.** This is why we can run real Spark
+  (`local[*]`) inside JUnit without packaging or `spark-submit`.
+- Maven Central is reachable, but **`search.maven.org` solrsearch times out** — query
+  `repo1.maven.org/.../maven-metadata.xml` directly to discover versions.
+- In Spark tests, call `spark.sparkContext().setLogLevel("WARN")` so `show()` output is
+  readable (the logback/log4j2 dual-binding otherwise floods stdout with INFO).
+
+---
+
+## 3. Locked-in versions (verified to build & run together)
+
+| Dependency | Version | Scope | Notes |
+|---|---|---|---|
+| Java | 11 | — | `maven.compiler.release=11` |
+| Spark core/sql `_2.12` | 3.5.3 | **provided** | cluster supplies it |
+| spark-sql-kafka-0-10 `_2.12` | 3.5.3 | compile | bundled into fat jar |
+| **spark-doris-connector-spark-3.5** | **25.2.0** | compile | groupId `org.apache.doris`; old `*-3.5_2.12` no longer exists on Central. Latest line is 24/25/26.x |
+| jackson-dataformat-yaml + databind | 2.15.2 | compile | **pinned to Spark 3.5's Jackson** to avoid conflicts |
+| Lombok | 1.18.34 | provided | |
+| slf4j-api / logback-classic | 2.0.7 / 1.4.14 | compile | see logging caveat |
+| JUnit Jupiter | 5.10.2 | test | |
+| **embedded-kafka `_2.12`** | **3.4.1** | test | in-JVM Kafka broker; pinned to Kafka 3.4.1 because spark-sql-kafka 3.5.3 bundles **kafka-clients 3.4.1** + **scala-library 2.12.18** → broker/clients/Scala all aligned, minimal conflict |
+
+Scala alignment matters: everything is **2.12**. Do NOT pull `spring-kafka-test` — it drags
+in `kafka_2.13` (Scala 2.13) and clashes with Spark's 2.12.
+
+---
+
+## 4. Build / packaging
+
+- `groupId=com.yourteam`, `artifactId=spark-doris-ingestion`, package `com.yourteam.ingestion`.
+- Maven layout: `src/main/java`, `src/main/resources`, `src/test/java`.
+- **maven-shade-plugin 3.6.0** (fat jar), bound to `package`:
+  - `ManifestResourceTransformer` → `Main-Class: com.yourteam.ingestion.IngestionJob`
+  - **`ServicesResourceTransformer`** — REQUIRED so Spark/Kafka/Doris DataSource registration
+    in `META-INF/services` survives shading.
+  - Filter out `META-INF/*.SF|*.DSA|*.RSA` and `module-info.class` (else "Invalid signature file").
+  - `minimizeJar=false` (Spark uses heavy reflection).
+- Result: `target/spark-doris-ingestion.jar` (~104 MB — the Doris connector is itself an
+  uber-jar bundling hadoop/guava/gson; the shade "overlapping resource" warnings come from
+  that and are harmless).
+- `logback.xml`: console appender; `org.apache.spark` / `org.apache.kafka` at WARN.
+  (Structured JSON logging is deferred to Task 5; on a real cluster log4j2 binds instead.)
+
+Verify build: `mvn -B clean package` → BUILD SUCCESS, then `java -jar target/spark-doris-ingestion.jar`
+runs the placeholder main.
+
+---
+
+## 5. The transformation (core of Task 3) — already implemented
+
+`com.yourteam.ingestion.transform.MessageTransform.toDorisColumns(Dataset<Row> kafka)`:
+
+```java
+Column headersAsJson = to_json(
+    expr("transform(headers, h -> struct(h.key AS key, CAST(h.value AS STRING) AS value))"));
+return kafka.select(
+    col("timestamp").alias("kafka_timestamp"),
+    col("partition").alias("kafka_partition"),
+    col("offset").alias("kafka_offset"),
+    col("key").cast("string").alias("kafka_key"),
+    col("value").cast("string").alias("kafka_value"),
+    headersAsJson.alias("kafka_headers"),
+    current_timestamp().alias("ingestion_time"));
+```
+
+Casting each header value to string first yields clean JSON
+(`[{"key":"trace-id","value":"abc-123"}]`) instead of base64 bytes. Reader must set
+`includeHeaders=true` so the `headers` column exists.
+
+---
+
+## 6. In-JVM validation (no Docker, no Doris) — PASSING
+
+**Step A — Spark only** (`MessageTransformTest`): build a DataFrame with the exact Kafka
+source schema (`key/value` binary, topic, partition, offset, timestamp, timestampType,
+`headers` array<struct<key:string,value:binary>>), run `MessageTransform`, assert the
+seven Doris columns. Proves Spark runs in-JVM and the transform is correct.
+
+**Step B — embedded Kafka end-to-end** (`KafkaToDorisStreamTest`): in-JVM broker →
+`KafkaProducer` publishes records w/ headers → Spark `readStream.format("kafka")` →
+`MessageTransform` → **`memory` sink as a Doris stand-in** → assert rows. Proves the real
+Kafka source path works without Docker. Key embedded-kafka (Scala) calls from Java:
+
+```java
+EmbeddedKafkaConfig cfg = EmbeddedKafkaConfig$.MODULE$.defaultConfig();
+EmbeddedKafka$.MODULE$.start(cfg);                  // starts ZK + Kafka in-process
+String bootstrap = "localhost:" + cfg.kafkaPort();  // default 6001
+// ... produce with plain kafka-clients KafkaProducer, then readStream from bootstrap ...
+EmbeddedKafka$.MODULE$.stop();                       // teardown (ignore ZK EndOfStreamException noise)
+```
+
+Use a `memory` sink + `query.processAllAvailable()` then `SELECT * FROM <queryName>` to
+assert deterministically. A harmless `EndOfStreamException` from ZooKeeper appears at
+teardown — tests still pass.
+
+Run: `mvn -B -Dtest=MessageTransformTest test` and `... -Dtest=KafkaToDorisStreamTest test`.
+
+---
+
+## 7. Status & next steps
+
+**Done:** Task 1 (pom + fat jar + logback, `mvn clean package` green). Plus a spike that
+proves the front half (Kafka → Spark → transform → sink) end-to-end in-JVM. `MessageTransform`
+is real and reusable; `IngestionJob.main` is still a placeholder.
+
+> **2026-05-29 — recreated on macOS (arm64).** The repo had only this guide; the code was
+> rebuilt from it here. Toolchain is now **Homebrew** (not the Linux/IntelliJ paths in §2):
+> `openjdk@11` (`JAVA_HOME=/opt/homebrew/opt/openjdk@11`, runtime 11.0.31) + Maven 3.9.16.
+> Just `source dev-env.sh` then `mvn …` — it sets brew env, `JAVA_HOME`, and `MAVEN_OPTS`.
+> **Both tests now pass together in one `mvn test` (same JVM): `Tests run: 2, Failures: 0`.**
+> (`getOrCreate()` reuses the first test's SparkSession, so consecutive SparkSessions in one
+> JVM are fine — the thing left open last session.) Fat jar = 104 MB as before.
+
+**Next, in order:**
+1. **Task 2 — Config model & loading:** immutable `@Value` classes (`JobConfig`, `KafkaConfig`,
+   `DorisConfig`, `SparkStreamingConfig`); parse YAML via `jackson-dataformat-yaml`; validate
+   required fields; read Doris password from the env var named by `password_env`; unit tests.
+2. **Task 3 — Wire the real `IngestionJob.main`:** load config → SparkSession (apply
+   `spark.extra_conf`) → Kafka `readStream` (bootstrap/topic/startingOffsets/maxOffsetsPerTrigger,
+   `includeHeaders=true`) → `MessageTransform.toDorisColumns` → Doris `writeStream` (fenodes,
+   db.table, user, password, extra options) → checkpoint/trigger/output mode + shutdown hook.
+   Reuse the Step B test as the integration harness; swap the `memory` sink for the Doris sink
+   (or keep memory sink in tests since Doris is heavy).
+3. Task 4 error handling/retry, Task 5 metrics + JSON logging, Task 6 integration tests
+   (keep using embedded-kafka; mock/stub Doris).
+
+Build process reminder: run `mvn` via the IntelliJ path + `JAVA_HOME` + `MAVEN_OPTS` from §2.
