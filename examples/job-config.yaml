@@ -15,13 +15,15 @@ doris:
   table: "orders_raw"                 # must have the fixed 7-column layout
   user: "ingest"
   password_env: "DORIS_PASSWORD"      # name of the env var holding the password (never inline it)
-  options:                            # optional, passed through to the Doris writer
-    sink.batch.size: "100000"
-    sink.max-retries: "3"
+  options:                            # optional; passed to the Doris writer VERBATIM,
+    doris.sink.batch.size: "100000"   #   so use the connector's full option keys (doris.*)
+    doris.sink.max-retries: "3"
 
 spark:
   checkpoint_location: "s3a://my-bucket/checkpoints/orders"
   output_mode: "append"               # optional, default: append
   trigger: "30 seconds"               # optional: "30 seconds" | "once" | "availableNow" | omit
-  extra_conf:                         # optional, applied as spark.conf().set(k, v)
+  extra_conf:                         # optional, applied to the SparkSession via .config(k, v)
     spark.sql.shuffle.partitions: "8"
+    # spark.master: "local[*]"        # set ONLY when running via `java -jar` off-cluster;
+                                       # omit on a cluster (spark-submit supplies --master)

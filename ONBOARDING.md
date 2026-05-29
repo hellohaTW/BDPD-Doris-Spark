@@ -174,14 +174,20 @@ field; `DorisConfig.resolvePassword(env)` reads the password from the env var na
 `password_env` (never in YAML). Example: `examples/job-config.yaml`. `ConfigLoaderTest` (5
 tests) green; full suite now 8 tests green.
 
+**Task 3 — DONE (2026-05-29):** `IngestionJob.main` is wired end to end. Logic lives in
+`IngestionPipeline`: `buildSession` (applies `spark.extra_conf`; master comes from conf or
+spark-submit), `readKafkaStream` (`includeHeaders=true`, optional `maxOffsetsPerTrigger`),
+`dorisOptions` (4 core `doris.*` opts + verbatim extras), `parseTrigger`
+(`once`/`availableNow`/`"N seconds"`/null), `dorisWriter`. `main` loads config → resolves
+password → starts query → shutdown hook → `awaitTermination`; config/usage errors exit code 2
+(verified via `java -jar`). `IngestionPipelineTest` (3 tests: in-JVM Kafka read, doris option
+mapping, trigger parsing). **Full suite now 11 tests green.** Run a real job:
+`DORIS_PASSWORD=... java -jar target/spark-doris-ingestion.jar examples/job-config.yaml`
+(put `spark.master: "local[*]"` in `extra_conf` for off-cluster local runs).
+
 **Next, in order:**
-1. **Task 3 — Wire the real `IngestionJob.main`:** load config → SparkSession (apply
-   `spark.extra_conf`) → Kafka `readStream` (bootstrap/topic/startingOffsets/maxOffsetsPerTrigger,
-   `includeHeaders=true`) → `MessageTransform.toDorisColumns` → Doris `writeStream` (fenodes,
-   db.table, user, password, extra options) → checkpoint/trigger/output mode + shutdown hook.
-   Reuse the Step B test as the integration harness; swap the `memory` sink for the Doris sink
-   (or keep memory sink in tests since Doris is heavy).
-3. Task 4 error handling/retry, Task 5 metrics + JSON logging, Task 6 integration tests
-   (keep using embedded-kafka; mock/stub Doris).
+1. Task 4 — error handling / retry (connect/write failures, poison messages, graceful drain).
+2. Task 5 — metrics (StreamingQueryListener) + structured JSON logging.
+3. Task 6 — integration tests (embedded-kafka; mock/stub Doris).
 
 Build process reminder: run `mvn` via the IntelliJ path + `JAVA_HOME` + `MAVEN_OPTS` from §2.

@@ -78,7 +78,14 @@ manually / in a real environment.
    (snake_case YAML via jackson-dataformat-yaml) + fail-fast validation collecting every
    missing field + password read from the env var named by `password_env`. See
    [examples/job-config.yaml](../examples/job-config.yaml). Unit tests in `ConfigLoaderTest`.
-3. **Task 3 — Wire `IngestionJob.main`** end to end (see component flow).
+3. **Task 3 — Wire `IngestionJob.main`** ✅ end to end (see component flow). Logic factored
+   into [`IngestionPipeline`](../src/main/java/com/yourteam/ingestion/IngestionPipeline.java)
+   (`buildSession` applies `spark.extra_conf`; `readKafkaStream`; `dorisOptions`; `parseTrigger`;
+   `dorisWriter`). `IngestionJob.main` loads config, resolves the password, starts the query,
+   adds a shutdown hook, and awaits. Config/usage errors exit cleanly (code 2). Run:
+   `DORIS_PASSWORD=... java -jar target/spark-doris-ingestion.jar examples/job-config.yaml`
+   (set `spark.master` in `extra_conf` for off-cluster local runs). Tests in
+   `IngestionPipelineTest`.
 4. **Task 4 — Error handling / retry.**
 5. **Task 5 — Metrics + structured (JSON) logging.**
 6. **Task 6 — Integration tests** (embedded-kafka; mock/stub Doris).
