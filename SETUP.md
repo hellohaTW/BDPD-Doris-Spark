@@ -115,7 +115,7 @@ Expected:
 - First run downloads a lot (Spark, the Doris connector uber-jar). Subsequent runs are seconds.
 - `BUILD SUCCESS`.
 - `target/spark-doris-ingestion.jar` (~104 MB fat jar).
-- `Tests run: 8, Failures: 0, Errors: 0, Skipped: 0` across 4 test classes.
+- `Tests run: 11, Failures: 0, Errors: 0, Skipped: 0` across 5 test classes.
 - A wall of `overlapping resource`/`overlapping classes` **WARNINGs** from the shade plugin —
   **these are harmless** (the Doris connector bundles hadoop/guava/gson). Do not "fix" them.
 
@@ -150,8 +150,13 @@ That proves the Kafka → Spark → transform path: `kafka_value` carried verbat
 rendered as clean JSON (not base64). A first-batch `WARN ... LEADER_NOT_AVAILABLE` and a
 teardown `EndOfStreamException` from ZooKeeper are both normal noise.
 
-> The real `java -jar target/spark-doris-ingestion.jar` only prints a placeholder until **Task 3**
-> wires `IngestionJob.main`. Until then, the tests are how you run it.
+> `IngestionJob.main` is wired (Task 3), so you can also launch the real job against your own
+> Kafka + Doris:
+> ```bash
+> DORIS_PASSWORD=... java -jar target/spark-doris-ingestion.jar examples/job-config.yaml
+> ```
+> With no args it prints usage; a bad/invalid config exits cleanly (code 2). For off-cluster
+> local runs, set `spark.master: "local[*]"` under `spark.extra_conf` in the YAML.
 
 ---
 
@@ -162,16 +167,17 @@ Read [ONBOARDING.md §7](ONBOARDING.md) for the live status. As of this writing:
 - **Task 1 (skeleton + fat jar + in-JVM tests)** — done.
 - **Task 2 (config model + YAML loader + validation + password-from-env)** — done; see
   `com.yourteam.ingestion.config` and [examples/job-config.yaml](examples/job-config.yaml).
-- **Task 3 — next:** wire `IngestionJob.main` end to end (load config → SparkSession with
-  `spark.extra_conf` → Kafka `readStream` with `includeHeaders=true` → `MessageTransform` →
-  Doris `writeStream` → checkpoint/trigger/output mode + shutdown hook). After Task 3 you can
-  launch a real job:
-  ```bash
-  DORIS_PASSWORD=... java -jar target/spark-doris-ingestion.jar examples/job-config.yaml
-  ```
-- Then Task 4 (error handling/retry), Task 5 (metrics + JSON logging), Task 6 (integration tests).
+- **Task 3 (wire `IngestionJob.main` end to end)** — done; logic in
+  `com.yourteam.ingestion.IngestionPipeline` (`buildSession` / `readKafkaStream` /
+  `dorisOptions` / `parseTrigger` / `dorisWriter`), `main` loads config → starts query →
+  shutdown hook → awaits. Launch a real job with the `java -jar … examples/job-config.yaml`
+  command above.
+- **Task 4 — next:** error handling / retry (connect & write failures, poison messages,
+  graceful drain). Then Task 5 (metrics + JSON logging), Task 6 (integration tests).
 
 **Workflow rule:** develop **one Task at a time**, confirming with the user between tasks.
+**Pushing:** commits are made locally; the human pushes (this sandbox can't reach the git
+credential store).
 
 ---
 

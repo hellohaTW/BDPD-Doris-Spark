@@ -159,12 +159,13 @@ is real and reusable; `IngestionJob.main` is still a placeholder.
 > SparkSession run fine together in one `mvn test` (same JVM) — `getOrCreate()` reuses the
 > first session. Fat jar = 104 MB as before.
 >
-> **Full suite now `Tests run: 8, Failures: 0`** across 4 classes: `MessageTransformTest`,
-> `KafkaToDorisStreamTest`, `FakeDataConsumeDemoTest`, `ConfigLoaderTest`.
+> **Full suite now `Tests run: 11, Failures: 0`** across 5 classes: `MessageTransformTest`,
+> `KafkaToDorisStreamTest`, `FakeDataConsumeDemoTest`, `ConfigLoaderTest`, `IngestionPipelineTest`.
 >
-> Git: work lives on branch **`task1-skeleton`** (not yet pushed/merged) —
-> `1739574` Task 1 (skeleton + tests), `9f4831f` Task 2 (config). `target/`, `.idea/`,
-> `dependency-reduced-pom.xml` are gitignored.
+> Git: work lives on branch **`task1-skeleton`** — `1739574` Task 1, `9f4831f` Task 2,
+> `68a15fc` docs+cross-platform dev-env, `65e5796` Task 3. `target/`, `.idea/`,
+> `dependency-reduced-pom.xml` are gitignored. **Pushing is done by the human** — this
+> sandboxed shell can't reach the git credential store (HTTPS + osxkeychain).
 
 **Task 2 — DONE (2026-05-29):** immutable `@Value @Jacksonized` classes (`JobConfig`,
 `KafkaConfig`, `DorisConfig`, `SparkStreamingConfig`) in `com.yourteam.ingestion.config`;
@@ -190,4 +191,6 @@ mapping, trigger parsing). **Full suite now 11 tests green.** Run a real job:
 2. Task 5 — metrics (StreamingQueryListener) + structured JSON logging.
 3. Task 6 — integration tests (embedded-kafka; mock/stub Doris).
 
-Build process reminder: run `mvn` via the IntelliJ path + `JAVA_HOME` + `MAVEN_OPTS` from §2.
+Build process reminder: `source dev-env.sh` (cross-platform; sets `JAVA_HOME` + `MAVEN_OPTS`)
+then `mvn …`. From-zero setup on a new machine (incl. `git clone`) is in `SETUP.md`. The
+original Linux/IntelliJ sandbox paths in §2 are historical.
