@@ -130,9 +130,17 @@ EmbeddedKafka$.MODULE$.stop();                       // teardown (ignore ZK EndO
 
 Use a `memory` sink + `query.processAllAvailable()` then `SELECT * FROM <queryName>` to
 assert deterministically. A harmless `EndOfStreamException` from ZooKeeper appears at
-teardown — tests still pass.
+teardown — tests still pass. A first-batch `WARN NetworkClient ... LEADER_NOT_AVAILABLE` is
+also normal (broker just started, topic auto-creating) and self-heals on the next fetch.
 
-Run: `mvn -B -Dtest=MessageTransformTest test` and `... -Dtest=KafkaToDorisStreamTest test`.
+**Step C — demo / "run it and see"** (`FakeDataConsumeDemoTest`): same path as Step B but it
+publishes a few fake order events and **prints** the seven Doris columns (`result.show(false)`
++ field-by-field), so you can eyeball what the job reads from Kafka before `IngestionJob.main`
+is wired (Task 3). Proves `kafka_value` is carried verbatim and `kafka_headers` is clean JSON
+(`[{"key":"trace-id","value":"t-aaa"}]`, not base64).
+
+Run (after `source dev-env.sh`): `mvn -B test` (all 8) or one class via `-Dtest=<ClassName>`,
+e.g. `mvn -B -Dtest=FakeDataConsumeDemoTest test`.
 
 ---
 
@@ -145,10 +153,18 @@ is real and reusable; `IngestionJob.main` is still a placeholder.
 > **2026-05-29 — recreated on macOS (arm64).** The repo had only this guide; the code was
 > rebuilt from it here. Toolchain is now **Homebrew** (not the Linux/IntelliJ paths in §2):
 > `openjdk@11` (`JAVA_HOME=/opt/homebrew/opt/openjdk@11`, runtime 11.0.31) + Maven 3.9.16.
-> Just `source dev-env.sh` then `mvn …` — it sets brew env, `JAVA_HOME`, and `MAVEN_OPTS`.
-> **Both tests now pass together in one `mvn test` (same JVM): `Tests run: 2, Failures: 0`.**
-> (`getOrCreate()` reuses the first test's SparkSession, so consecutive SparkSessions in one
-> JVM are fine — the thing left open last session.) Fat jar = 104 MB as before.
+> Just `source dev-env.sh` then `mvn …` — it is **cross-platform** (macOS Intel/ARM + Linux):
+> sets `MAVEN_OPTS` and auto-detects a JDK 11 for `JAVA_HOME`. From-zero bootstrap: `SETUP.md`.
+> Confirmed the question left open last session: multiple test classes each starting a
+> SparkSession run fine together in one `mvn test` (same JVM) — `getOrCreate()` reuses the
+> first session. Fat jar = 104 MB as before.
+>
+> **Full suite now `Tests run: 8, Failures: 0`** across 4 classes: `MessageTransformTest`,
+> `KafkaToDorisStreamTest`, `FakeDataConsumeDemoTest`, `ConfigLoaderTest`.
+>
+> Git: work lives on branch **`task1-skeleton`** (not yet pushed/merged) —
+> `1739574` Task 1 (skeleton + tests), `9f4831f` Task 2 (config). `target/`, `.idea/`,
+> `dependency-reduced-pom.xml` are gitignored.
 
 **Task 2 — DONE (2026-05-29):** immutable `@Value @Jacksonized` classes (`JobConfig`,
 `KafkaConfig`, `DorisConfig`, `SparkStreamingConfig`) in `com.yourteam.ingestion.config`;

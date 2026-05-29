@@ -9,16 +9,19 @@ A generic Spark Structured Streaming job: Kafka → Doris, **schema-agnostic** (
 never parsed, carried verbatim), **config-driven** (one fat jar, behaviour from external
 YAML). Every Doris table shares a fixed 7-column layout.
 
-## Build / test (macOS, Homebrew toolchain)
+## Build / test
+
+Need **JDK 11** + Maven (install per OS — see [SETUP.md](SETUP.md) Step 1).
 
 ```bash
-source dev-env.sh          # sets brew env, JAVA_HOME=openjdk@11, MAVEN_OPTS (--add-opens)
-mvn -B clean package       # fat jar -> target/spark-doris-ingestion.jar, runs tests
-mvn -B -Dtest=MessageTransformTest test
-mvn -B -Dtest=KafkaToDorisStreamTest test
+source dev-env.sh          # cross-platform (macOS/Linux): auto-detects JDK 11 -> JAVA_HOME, sets MAVEN_OPTS
+mvn -B clean package       # fat jar -> target/spark-doris-ingestion.jar, runs all tests
+mvn -B -Dtest=ConfigLoaderTest test
+mvn -B -Dtest=FakeDataConsumeDemoTest test
 ```
 
-On the original Linux/IntelliJ sandbox the toolchain differs — see ONBOARDING.md §2.
+Full from-zero bootstrap (incl. `git clone`) is in [SETUP.md](SETUP.md). The original
+Linux/IntelliJ sandbox paths are in ONBOARDING.md §2 (historical).
 
 ## Non-negotiables
 
