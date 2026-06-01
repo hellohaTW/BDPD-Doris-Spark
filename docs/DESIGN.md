@@ -111,4 +111,15 @@ manually / in a real environment.
    ([`StreamingMetricsListenerTest`](../src/test/java/com/yourteam/ingestion/metrics/StreamingMetricsListenerTest.java)).
    `IngestionJob.main` also emits a `job_started` event. Tests: `StreamingMetricsTest`,
    `StreamingMetricsListenerTest`.
-6. **Task 6 — Integration tests** (embedded-kafka; mock/stub Doris).
+6. **Task 6 — Integration tests** ✅ (embedded-kafka; stub Doris). `EndToEndIngestionTest` runs
+   the real production wiring (`IngestionPipeline.buildSession` / `readKafkaStream` /
+   `MessageTransform.toDorisColumns`, with a real checkpoint and `AvailableNow` trigger) from an
+   embedded Kafka broker into a [`StubDorisSink`](../src/test/java/com/yourteam/ingestion/StubDorisSink.java)
+   (a `foreachBatch` writer capturing the rows that would be written — no Docker, no real Doris).
+   It asserts the fixed 7-column contract / verbatim payload (JSON and non-JSON alike) / clean
+   header JSON end to end, the `doris.*` option contract via `dorisOptions`, and that a restart
+   resumes from the checkpoint without reprocessing (the no-data-loss property the Task 4 supervisor
+   relies on). The literal `.format("doris")` write is the only line still exercised solely on a
+   real cluster.
+
+**All six tasks are complete; the full suite is 29 tests green.**

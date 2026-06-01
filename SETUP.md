@@ -126,7 +126,7 @@ Expected:
 - First run downloads a lot (Spark, the Doris connector uber-jar). Subsequent runs are seconds.
 - `BUILD SUCCESS`.
 - `target/spark-doris-ingestion.jar` (~104 MB fat jar).
-- `Tests run: 27, Failures: 0, Errors: 0, Skipped: 0` across 9 test classes.
+- `Tests run: 29, Failures: 0, Errors: 0, Skipped: 0` across 10 test classes.
 - A wall of `overlapping resource`/`overlapping classes` **WARNINGs** from the shade plugin —
   **these are harmless** (the Doris connector bundles hadoop/guava/gson). Do not "fix" them.
 
@@ -188,7 +188,10 @@ Read [ONBOARDING.md §7](ONBOARDING.md) for the live status. As of this writing:
   from the checkpoint, no data loss). See `com.yourteam.ingestion.retry`.
 - **Task 5 (metrics + structured JSON logging)** — done; a `StreamingMetricsListener` logs the
   query lifecycle + per-batch throughput as single-line JSON. See `com.yourteam.ingestion.metrics`.
-- **Task 6 — next:** integration tests (embedded-kafka; mock/stub Doris).
+- **Task 6 (integration tests)** — done; `EndToEndIngestionTest` drives the real production wiring
+  from embedded Kafka into a stub Doris sink, asserting the 7-column contract and checkpoint resume.
+
+**All six planned tasks are complete.**
 
 **Workflow rule:** develop **one Task at a time**, confirming with the user between tasks.
 **Pushing:** commits are made locally; the human pushes (this sandbox can't reach the git

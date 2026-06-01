@@ -222,7 +222,18 @@ drives it on a real Spark `rate` query (no Kafka/Doris) and asserts a captured `
 `IngestionJob.main` registers the listener and emits a `job_started` event. New tests:
 `StreamingMetricsTest` (5), `StreamingMetricsListenerTest` (1). **Full suite now 27 tests green.**
 
-**Next:** Task 6 — integration tests (embedded-kafka; mock/stub Doris).
+**Task 6 — DONE (2026-06-01):** end-to-end integration test. `EndToEndIngestionTest` runs the real
+production wiring (`IngestionPipeline.buildSession`/`readKafkaStream` + `MessageTransform`, real
+checkpoint + `AvailableNow` trigger) from an embedded Kafka broker into `StubDorisSink` — a
+`foreachBatch` writer that captures the rows that would be written (no Docker, no real Doris). It
+asserts the fixed 7-column contract / verbatim payload (JSON and non-JSON) / clean header JSON end
+to end, the `doris.*` option contract via `dorisOptions`, and that a restart resumes from the
+checkpoint without reprocessing (the no-data-loss property the Task 4 supervisor relies on). The
+only line still exercised solely on a real cluster is the literal `.format("doris")` write. New
+tests: `EndToEndIngestionTest` (2). **Full suite now 29 tests green.**
+
+**All six tasks are complete.** Possible follow-ups beyond the original plan: a live smoke test
+against a real Doris in a staging env, packaging/release wiring, and a `spark-submit` runbook.
 
 Build process reminder: `source dev-env.sh` (cross-platform; sets `JAVA_HOME` + `MAVEN_OPTS`)
 then `mvn …`. From-zero setup on a new machine (incl. `git clone`) is in `SETUP.md`. The
