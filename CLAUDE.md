@@ -11,10 +11,10 @@ YAML). Every Doris table shares a fixed 7-column layout.
 
 ## Build / test
 
-Need **JDK 11** + Maven (install per OS — see [SETUP.md](SETUP.md) Step 1).
+Need **JDK 17** + Maven (install per OS — see [SETUP.md](SETUP.md) Step 1).
 
 ```bash
-source dev-env.sh          # cross-platform (macOS/Linux): auto-detects JDK 11 -> JAVA_HOME, sets MAVEN_OPTS
+source dev-env.sh          # cross-platform (macOS/Linux): auto-detects JDK 17 -> JAVA_HOME, sets MAVEN_OPTS
 mvn -B clean package       # fat jar -> target/spark-doris-ingestion.jar, runs all tests
 mvn -B -Dtest=ConfigLoaderTest test
 mvn -B -Dtest=FakeDataConsumeDemoTest test
@@ -25,14 +25,14 @@ Linux/IntelliJ sandbox paths are in ONBOARDING.md §2 (historical).
 
 ## Non-negotiables
 
-- **Java 11.** `maven.compiler.release=11`. Spark on Java 11 needs the `--add-opens` flags
-  (already in `dev-env.sh` and in surefire's `argLine`).
+- **Java 17.** `maven.compiler.release=17`. Spark on Java 17 needs the `--add-opens` flags
+  (Spark's full JavaModuleOptions set is already in `dev-env.sh` and in surefire's `argLine`).
 - **No Docker / no Testcontainers / no real Doris.** Validate in-JVM: real Spark `local[*]`
   (provided deps are on the test classpath) + `embedded-kafka` broker + `memory` sink as a
   Doris stand-in.
 - **Everything is Scala 2.12.** Do not pull `spring-kafka-test` (drags in Scala 2.13).
 - Jackson pinned to **2.15.2** (Spark 3.5's version). embedded-kafka pinned to **3.4.1**
-  (matches Spark's bundled kafka-clients 3.4.1).
+  (matches Spark 3.5.1's bundled kafka-clients 3.4.1).
 - Shade plugin **must** keep `ServicesResourceTransformer` (DataSource registration) and
   filter `META-INF/*.SF|*.DSA|*.RSA` + `module-info.class`.
 

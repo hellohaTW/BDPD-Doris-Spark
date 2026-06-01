@@ -39,45 +39,45 @@ git log --oneline -3           # expect: Task 2 ... / Task 1 ... / Initial commi
 
 ---
 
-## Step 1 — Install the toolchain (Java 11 + Maven)
+## Step 1 — Install the toolchain (Java 17 + Maven)
 
-**Hard requirement: JDK 11.** `maven.compiler.release=11`. Newer JDKs will fail or need extra
+**Hard requirement: JDK 17.** `maven.compiler.release=17`. Other JDKs may fail or need extra
 flags. Maven 3.9.x is fine.
 
 ### macOS (Homebrew)
 
 ```bash
 # Install Homebrew first if missing: https://brew.sh
-brew install openjdk@11 maven        # openjdk@11 is keg-only (no sudo, doesn't touch system Java)
+brew install openjdk@17 maven        # openjdk@17 is keg-only (no sudo, doesn't touch system Java)
 ```
 
-`JAVA_HOME` for this install is `/opt/homebrew/opt/openjdk@11` (Apple Silicon) or
-`/usr/local/opt/openjdk@11` (Intel). You don't need to set it by hand — [dev-env.sh](dev-env.sh)
+`JAVA_HOME` for this install is `/opt/homebrew/opt/openjdk@17` (Apple Silicon) or
+`/usr/local/opt/openjdk@17` (Intel). You don't need to set it by hand — [dev-env.sh](dev-env.sh)
 auto-detects it in Step 2 (it finds brew even if it isn't on your PATH yet).
 
 ### Linux (Debian/Ubuntu)
 
 ```bash
-sudo apt-get update && sudo apt-get install -y openjdk-11-jdk maven
+sudo apt-get update && sudo apt-get install -y openjdk-17-jdk maven
 ```
 
 `dev-env.sh` (Step 2) auto-detects this JDK from `javac` on PATH, so you normally don't need
-to set `JAVA_HOME` by hand. (RHEL/Fedora: `sudo dnf install java-11-openjdk-devel maven`.)
+to set `JAVA_HOME` by hand. (RHEL/Fedora: `sudo dnf install java-17-openjdk-devel maven`.)
 
 ### Verify
 
 ```bash
-"$JAVA_HOME/bin/java" -version    # expect: openjdk version "11.0.x"
-mvn -version                      # expect: Apache Maven 3.9.x, Java version: 11.0.x
+"$JAVA_HOME/bin/java" -version    # expect: openjdk version "17.0.x"
+mvn -version                      # expect: Apache Maven 3.9.x, Java version: 17.0.x
 ```
 
-If `mvn -version` reports a Java other than 11, fix `JAVA_HOME` before going on.
+If `mvn -version` reports a Java other than 17, fix `JAVA_HOME` before going on.
 
 ---
 
 ## Step 2 — Set the build environment
 
-Spark on Java 11 needs `--add-opens` flags or it throws `InaccessibleObjectException`. The repo
+Spark on Java 17 needs `--add-opens` flags or it throws `InaccessibleObjectException`. The repo
 ships a **cross-platform** helper — source it once per shell:
 
 ```bash
@@ -85,19 +85,30 @@ source dev-env.sh
 ```
 
 Works on **macOS (Intel or Apple Silicon) and Linux**. It sets `MAVEN_OPTS` (the `--add-opens`
-flags) and auto-detects a JDK 11 for `JAVA_HOME` — in this order: a `JAVA_HOME` you've already
+flags) and auto-detects a JDK 17 for `JAVA_HOME` — in this order: a `JAVA_HOME` you've already
 exported → macOS `java_home`/Homebrew → `javac` on PATH → common Linux JVM dirs. It prints the
-resolved `JAVA_HOME` and `java -version`. To force a specific JDK, `export JAVA_HOME=/path/to/jdk11`
-before sourcing. If it warns it can't find JDK 11, do Step 1 first.
+resolved `JAVA_HOME` and `java -version`. To force a specific JDK, `export JAVA_HOME=/path/to/jdk17`
+before sourcing. If it warns it can't find JDK 17, do Step 1 first.
 
-Prefer not to source it? Set the two vars yourself:
+Prefer not to source it? Set the two vars yourself (this is Spark's full JavaModuleOptions set):
 
 ```bash
-export JAVA_HOME=/path/to/jdk-11                 # e.g. /usr/lib/jvm/java-11-openjdk-amd64
-export MAVEN_OPTS="--add-opens=java.base/sun.nio.ch=ALL-UNNAMED \
-  --add-opens=java.base/java.nio=ALL-UNNAMED \
+export JAVA_HOME=/path/to/jdk-17                 # e.g. /usr/lib/jvm/java-17-openjdk-amd64
+export MAVEN_OPTS="-XX:+IgnoreUnrecognizedVMOptions \
   --add-opens=java.base/java.lang=ALL-UNNAMED \
-  --add-opens=java.base/java.util=ALL-UNNAMED"
+  --add-opens=java.base/java.lang.invoke=ALL-UNNAMED \
+  --add-opens=java.base/java.lang.reflect=ALL-UNNAMED \
+  --add-opens=java.base/java.io=ALL-UNNAMED \
+  --add-opens=java.base/java.net=ALL-UNNAMED \
+  --add-opens=java.base/java.nio=ALL-UNNAMED \
+  --add-opens=java.base/java.util=ALL-UNNAMED \
+  --add-opens=java.base/java.util.concurrent=ALL-UNNAMED \
+  --add-opens=java.base/java.util.concurrent.atomic=ALL-UNNAMED \
+  --add-opens=java.base/sun.nio.ch=ALL-UNNAMED \
+  --add-opens=java.base/sun.nio.cs=ALL-UNNAMED \
+  --add-opens=java.base/sun.security.action=ALL-UNNAMED \
+  --add-opens=java.base/sun.util.calendar=ALL-UNNAMED \
+  --add-opens=java.security.jgss/sun.security.krb5=ALL-UNNAMED"
 ```
 
 (The surefire plugin also injects the `--add-opens` flags for tests via `argLine`, so test runs
@@ -186,11 +197,11 @@ credential store).
 | Symptom | Cause / fix |
 |---|---|
 | `InaccessibleObjectException` in tests/run | Missing `--add-opens` — `source dev-env.sh` or export `MAVEN_OPTS` (Step 2). |
-| `mvn` uses the wrong Java | `JAVA_HOME` not pointing at JDK 11. Re-check Step 1 "Verify". |
+| `mvn` uses the wrong Java | `JAVA_HOME` not pointing at JDK 17. Re-check Step 1 "Verify". |
 | Shade "overlapping resource/classes" warnings | Harmless; the Doris connector is an uber-jar. Leave them. |
 | `LEADER_NOT_AVAILABLE` warning in a Kafka test | Broker just started / topic auto-creating; self-heals next fetch. |
 | Want to add a Kafka test lib | Use `embedded-kafka_2.12` **3.4.1** only. Do **not** add `spring-kafka-test` (pulls Scala 2.13 and clashes with Spark's 2.12). |
 | No internet for Maven Central | First build needs it (downloads Spark/Doris). After that the local `~/.m2` cache suffices. |
 
-Everything is **Scala 2.12**, **Jackson 2.15.2**, **Spark 3.5.3**, **Doris connector 25.2.0**.
+Everything is **Scala 2.12**, **Jackson 2.15.2**, **Spark 3.5.1**, **Doris connector 25.1.0**.
 See the full locked-version table in [ONBOARDING.md §3](ONBOARDING.md).

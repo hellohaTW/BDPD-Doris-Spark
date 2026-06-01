@@ -26,15 +26,27 @@ Doris columns (target layout, in DDL order):
 - **No `mvn` on PATH.** Use IntelliJ's bundled Maven 3.9.6:
   ```bash
   export PATH="/opt/idea-IC-241.17011.79/plugins/maven/lib/maven3/bin:$PATH"
-  export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
+  export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
   ```
 - **No Docker** — do not use Testcontainers. Simulate Kafka in-JVM with `embedded-kafka`.
-- **Spark on Java 11 needs `--add-opens`** or tests/jobs hit `InaccessibleObjectException`:
+- **Spark on Java 17 needs `--add-opens`** or tests/jobs hit `InaccessibleObjectException`.
+  Use Spark's full JavaModuleOptions set (java 17 is stricter than 11):
   ```bash
-  export MAVEN_OPTS="--add-opens=java.base/sun.nio.ch=ALL-UNNAMED \
-    --add-opens=java.base/java.nio=ALL-UNNAMED \
+  export MAVEN_OPTS="-XX:+IgnoreUnrecognizedVMOptions \
     --add-opens=java.base/java.lang=ALL-UNNAMED \
-    --add-opens=java.base/java.util=ALL-UNNAMED"
+    --add-opens=java.base/java.lang.invoke=ALL-UNNAMED \
+    --add-opens=java.base/java.lang.reflect=ALL-UNNAMED \
+    --add-opens=java.base/java.io=ALL-UNNAMED \
+    --add-opens=java.base/java.net=ALL-UNNAMED \
+    --add-opens=java.base/java.nio=ALL-UNNAMED \
+    --add-opens=java.base/java.util=ALL-UNNAMED \
+    --add-opens=java.base/java.util.concurrent=ALL-UNNAMED \
+    --add-opens=java.base/java.util.concurrent.atomic=ALL-UNNAMED \
+    --add-opens=java.base/sun.nio.ch=ALL-UNNAMED \
+    --add-opens=java.base/sun.nio.cs=ALL-UNNAMED \
+    --add-opens=java.base/sun.security.action=ALL-UNNAMED \
+    --add-opens=java.base/sun.util.calendar=ALL-UNNAMED \
+    --add-opens=java.security.jgss/sun.security.krb5=ALL-UNNAMED"
   ```
 - **`provided` Spark deps are on the TEST classpath.** This is why we can run real Spark
   (`local[*]`) inside JUnit without packaging or `spark-submit`.
@@ -49,15 +61,15 @@ Doris columns (target layout, in DDL order):
 
 | Dependency | Version | Scope | Notes |
 |---|---|---|---|
-| Java | 11 | — | `maven.compiler.release=11` |
-| Spark core/sql `_2.12` | 3.5.3 | **provided** | cluster supplies it |
-| spark-sql-kafka-0-10 `_2.12` | 3.5.3 | compile | bundled into fat jar |
-| **spark-doris-connector-spark-3.5** | **25.2.0** | compile | groupId `org.apache.doris`; old `*-3.5_2.12` no longer exists on Central. Latest line is 24/25/26.x |
+| Java | 17 | — | `maven.compiler.release=17` |
+| Spark core/sql `_2.12` | 3.5.1 | **provided** | cluster supplies it |
+| spark-sql-kafka-0-10 `_2.12` | 3.5.1 | compile | bundled into fat jar |
+| **spark-doris-connector-spark-3.5** | **25.1.0** | compile | groupId `org.apache.doris`; old `*-3.5_2.12` no longer exists on Central. Latest line is 24/25/26.x |
 | jackson-dataformat-yaml + databind | 2.15.2 | compile | **pinned to Spark 3.5's Jackson** to avoid conflicts |
-| Lombok | 1.18.34 | provided | |
+| Lombok | 1.18.32 | provided | |
 | slf4j-api / logback-classic | 2.0.7 / 1.4.14 | compile | see logging caveat |
-| JUnit Jupiter | 5.10.2 | test | |
-| **embedded-kafka `_2.12`** | **3.4.1** | test | in-JVM Kafka broker; pinned to Kafka 3.4.1 because spark-sql-kafka 3.5.3 bundles **kafka-clients 3.4.1** + **scala-library 2.12.18** → broker/clients/Scala all aligned, minimal conflict |
+| JUnit Jupiter | 5.11.0-M2 | test | |
+| **embedded-kafka `_2.12`** | **3.4.1** | test | in-JVM Kafka broker; pinned to Kafka 3.4.1 because spark-sql-kafka 3.5.1 bundles **kafka-clients 3.4.1** + **scala-library 2.12.18** → broker/clients/Scala all aligned, minimal conflict |
 
 Scala alignment matters: everything is **2.12**. Do NOT pull `spring-kafka-test` — it drags
 in `kafka_2.13` (Scala 2.13) and clashes with Spark's 2.12.

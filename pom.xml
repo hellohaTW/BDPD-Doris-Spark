@@ -14,18 +14,18 @@
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <maven.compiler.release>11</maven.compiler.release>
+        <maven.compiler.release>17</maven.compiler.release>
 
         <scala.binary.version>2.12</scala.binary.version>
-        <spark.version>3.5.3</spark.version>
-        <doris.connector.version>25.2.0</doris.connector.version>
+        <spark.version>3.5.1</spark.version>
+        <doris.connector.version>25.1.0</doris.connector.version>
         <!-- Pinned to Spark 3.5's bundled Jackson to avoid conflicts -->
         <jackson.version>2.15.2</jackson.version>
-        <lombok.version>1.18.34</lombok.version>
+        <lombok.version>1.18.32</lombok.version>
         <slf4j.version>2.0.7</slf4j.version>
         <logback.version>1.4.14</logback.version>
-        <junit.version>5.10.2</junit.version>
-        <!-- Pinned to Kafka 3.4.1 because spark-sql-kafka 3.5.3 bundles kafka-clients 3.4.1 + scala 2.12.18 -->
+        <junit.version>5.11.0-M2</junit.version>
+        <!-- Pinned to Kafka 3.4.1 because spark-sql-kafka 3.5.1 bundles kafka-clients 3.4.1 + scala 2.12.18 -->
         <embedded.kafka.version>3.4.1</embedded.kafka.version>
     </properties>
 
@@ -128,12 +128,24 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.2.5</version>
                 <configuration>
-                    <!-- Spark on Java 11 needs these or it hits InaccessibleObjectException -->
+                    <!-- Spark on Java 17 needs these or it hits InaccessibleObjectException.
+                         This is Spark's own JavaModuleOptions set (java 17 is stricter than 11). -->
                     <argLine>
-                        --add-opens=java.base/sun.nio.ch=ALL-UNNAMED
-                        --add-opens=java.base/java.nio=ALL-UNNAMED
+                        -XX:+IgnoreUnrecognizedVMOptions
                         --add-opens=java.base/java.lang=ALL-UNNAMED
+                        --add-opens=java.base/java.lang.invoke=ALL-UNNAMED
+                        --add-opens=java.base/java.lang.reflect=ALL-UNNAMED
+                        --add-opens=java.base/java.io=ALL-UNNAMED
+                        --add-opens=java.base/java.net=ALL-UNNAMED
+                        --add-opens=java.base/java.nio=ALL-UNNAMED
                         --add-opens=java.base/java.util=ALL-UNNAMED
+                        --add-opens=java.base/java.util.concurrent=ALL-UNNAMED
+                        --add-opens=java.base/java.util.concurrent.atomic=ALL-UNNAMED
+                        --add-opens=java.base/sun.nio.ch=ALL-UNNAMED
+                        --add-opens=java.base/sun.nio.cs=ALL-UNNAMED
+                        --add-opens=java.base/sun.security.action=ALL-UNNAMED
+                        --add-opens=java.base/sun.util.calendar=ALL-UNNAMED
+                        --add-opens=java.security.jgss/sun.security.krb5=ALL-UNNAMED
                     </argLine>
                 </configuration>
             </plugin>
