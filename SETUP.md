@@ -9,6 +9,7 @@ This is the bootstrap guide. Once the project builds, the deeper context lives i
 - [ONBOARDING.md](ONBOARDING.md) — design, locked-in versions, gotchas, current status & next task.
 - [CLAUDE.md](CLAUDE.md) — build/process rules and non-negotiables.
 - [docs/DESIGN.md](docs/DESIGN.md) — architecture and the Task 1→6 plan.
+- [docs/RUNBOOK.md](docs/RUNBOOK.md) — running on a real Spark Standalone cluster (`spark-submit`).
 
 ---
 
