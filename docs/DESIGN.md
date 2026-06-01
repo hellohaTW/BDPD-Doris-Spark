@@ -97,5 +97,18 @@ manually / in a real environment.
    active (graceful drain). Schema-agnostic ⇒ no parse-failure poison messages; bad writes are
    covered by the connector's `doris.sink.max-retries` plus the restart loop (a per-record DLQ is
    intentionally out of scope). Tests: `RetryPolicyTest`, `RetrySupervisorTest`, `ConfigLoaderTest`.
-5. **Task 5 — Metrics + structured (JSON) logging.**
+5. **Task 5 — Metrics + structured (JSON) logging** ✅ A
+   [`StreamingMetricsListener`](../src/main/java/com/yourteam/ingestion/metrics/StreamingMetricsListener.java)
+   (registered on the SparkSession) logs the query lifecycle as single-line JSON: `query_started`,
+   a `batch_progress` per micro-batch (batch id, num input rows, input/processed rows-per-second),
+   and `query_terminated`. Formatting is pure & unit-tested in
+   [`StreamingMetrics`](../src/main/java/com/yourteam/ingestion/metrics/StreamingMetrics.java) /
+   [`JsonEvents`](../src/main/java/com/yourteam/ingestion/metrics/JsonEvents.java) (compact JSON via
+   the pinned Jackson; non-finite rates on empty batches render as `null`, not `NaN`). The JSON is
+   the log *message*, so it survives whichever binding is active (logback locally, log4j2 on a
+   cluster) — more portable than reconfiguring logback, which a cluster ignores. The listener's
+   JSON sink is injectable, so it's also exercised on a real Spark query
+   ([`StreamingMetricsListenerTest`](../src/test/java/com/yourteam/ingestion/metrics/StreamingMetricsListenerTest.java)).
+   `IngestionJob.main` also emits a `job_started` event. Tests: `StreamingMetricsTest`,
+   `StreamingMetricsListenerTest`.
 6. **Task 6 — Integration tests** (embedded-kafka; mock/stub Doris).

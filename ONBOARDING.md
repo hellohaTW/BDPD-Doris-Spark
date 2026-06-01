@@ -210,9 +210,19 @@ parse-failure poison messages; bad Doris writes are handled by the connector's `
 (pass-through) plus the restart loop — a per-record DLQ is intentionally out of scope. New tests:
 `RetryPolicyTest` (5), `RetrySupervisorTest` (4), `ConfigLoaderTest` +1. **Full suite now 21 tests green.**
 
-**Next, in order:**
-1. Task 5 — metrics (StreamingQueryListener) + structured JSON logging.
-2. Task 6 — integration tests (embedded-kafka; mock/stub Doris).
+**Task 5 — DONE (2026-06-01):** metrics + structured (JSON) logging. A `StreamingMetricsListener`
+(`com.yourteam.ingestion.metrics`, registered via `spark.streams().addListener`) logs the query
+lifecycle as single-line JSON — `query_started`, a `batch_progress` per micro-batch (batch id, num
+input rows, input/processed rows-per-second), `query_terminated`. The JSON is the log *message*, so
+it works under whichever binding is active (logback locally, log4j2 on a cluster) — chosen over a
+full logback-JSON reconfig, which a cluster ignores. Formatting is pure & unit-tested in
+`StreamingMetrics`/`JsonEvents` (compact Jackson JSON; empty-batch NaN rates render as `null`, not the
+invalid token `NaN`). The listener's JSON sink is injectable, so `StreamingMetricsListenerTest` also
+drives it on a real Spark `rate` query (no Kafka/Doris) and asserts a captured `batch_progress` line.
+`IngestionJob.main` registers the listener and emits a `job_started` event. New tests:
+`StreamingMetricsTest` (5), `StreamingMetricsListenerTest` (1). **Full suite now 27 tests green.**
+
+**Next:** Task 6 — integration tests (embedded-kafka; mock/stub Doris).
 
 Build process reminder: `source dev-env.sh` (cross-platform; sets `JAVA_HOME` + `MAVEN_OPTS`)
 then `mvn …`. From-zero setup on a new machine (incl. `git clone`) is in `SETUP.md`. The

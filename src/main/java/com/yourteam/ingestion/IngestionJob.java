@@ -1,11 +1,15 @@
 package com.yourteam.ingestion;
 
 import java.nio.file.Paths;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import com.yourteam.ingestion.config.ConfigLoader;
 import com.yourteam.ingestion.config.JobConfig;
 import com.yourteam.ingestion.config.RetryConfig;
+import com.yourteam.ingestion.metrics.JsonEvents;
+import com.yourteam.ingestion.metrics.StreamingMetricsListener;
 import com.yourteam.ingestion.retry.RetryPolicy;
 import com.yourteam.ingestion.retry.RetrySupervisor;
 import com.yourteam.ingestion.transform.MessageTransform;
@@ -60,6 +64,18 @@ public final class IngestionJob {
                 config.getDoris().getFenodes());
 
         SparkSession spark = IngestionPipeline.buildSession(config, APP_NAME);
+
+        // Structured (JSON) metrics: one query_started, a batch_progress per micro-batch, and a
+        // query_terminated event, all logged as JSON lines regardless of the active log backend.
+        spark.streams().addListener(new StreamingMetricsListener());
+
+        Map<String, Object> started = new LinkedHashMap<>();
+        started.put("event", "job_started");
+        started.put("app", APP_NAME);
+        started.put("topic", config.getKafka().getTopic());
+        started.put("table", config.getDoris().tableIdentifier());
+        started.put("fenodes", config.getDoris().getFenodes());
+        log.info(JsonEvents.toJson(started));
 
         // The query is recreated on each restart; the shutdown hook stops whichever one is active
         // so SIGTERM/Ctrl-C drains the current batch and leaves the checkpoint consistent. A clean

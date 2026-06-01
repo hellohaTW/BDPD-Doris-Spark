@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
   Console logging for local/in-JVM runs. On a real cluster, Spark's log4j2 binds instead.
-  Structured JSON logging is deferred to Task 5.
+  Structured logging (Task 5) is done in the message itself: metrics and lifecycle events are
+  emitted as single-line JSON (see com.yourteam.ingestion.metrics), so they survive whichever
+  backend binds. This pattern just frames each line with a timestamp/level for humans.
 -->
 <configuration>
     <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
