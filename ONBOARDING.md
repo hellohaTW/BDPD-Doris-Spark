@@ -232,8 +232,44 @@ checkpoint without reprocessing (the no-data-loss property the Task 4 supervisor
 only line still exercised solely on a real cluster is the literal `.format("doris")` write. New
 tests: `EndToEndIngestionTest` (2). **Full suite now 29 tests green.**
 
-**All six tasks are complete.** Possible follow-ups beyond the original plan: a live smoke test
-against a real Doris in a staging env, packaging/release wiring, and a `spark-submit` runbook.
+**All six tasks are complete.**
+
+---
+
+## 8. Resume point — 2026-06-01 (Claude Code on the web session)
+
+Stopped here for the day; pick up from this list next time.
+
+**Done this session (beyond Tasks 1–6, all pushed):**
+- **Toolchain/dep bump** → Java **17**, Spark **3.5.1**, spark-doris-connector **25.1.0**, Lombok
+  **1.18.32**, JUnit **5.11.0-M2** (embedded-kafka kept at **3.4.1** — 3.9.0 breaks tests because
+  Spark 3.5.1 bundles kafka-clients 3.4.1). `pom.xml`, `dev-env.sh`, surefire `argLine` and all docs
+  updated; the Java-17 `--add-opens` is now Spark's full JavaModuleOptions set.
+- **SessionStart hook** for Claude Code on the web: `.claude/hooks/session-start.sh` +
+  `.claude/settings.json`. Remote-only, idempotent — installs JDK 17 (the web container ships 21)
+  and persists `JAVA_HOME` + `MAVEN_OPTS` via `$CLAUDE_ENV_FILE` so `mvn` just works. **Synchronous.**
+- **`docs/RUNBOOK.md`** — `spark-submit` runbook for **Spark Standalone** (client-mode submit with the
+  Java-17 flags on driver+executors, Doris table DDL, secrets, monitoring via the JSON metrics,
+  restart/resume, graceful shutdown, troubleshooting).
+- **Doris password now defaults to empty.** `doris.password_env` is optional; `resolvePassword`
+  returns `""` (no throw) when it's omitted or the env var is absent. `main` logs a WARN in that
+  case. ⚠️ This removed the old fail-fast safety — revisit if prod should require a password.
+
+**Full suite: 30 tests green** (`mvn -B clean package`, fat jar ~104 MB).
+
+**Branch state (IMPORTANT for next session):**
+- Work lives on **`task1-skeleton`** and **`claude/brave-wozniak-qQJmR`** — both at the same commit.
+- **The default branch `main` is still essentially empty** (just `README.md` + `.gitignore`). When
+  starting a new web session, **base it on `task1-skeleton`**, NOT `main`. The SessionStart hook only
+  applies to every branch once `task1-skeleton` is **merged into `main`** — that merge + any path
+  adjustments are the user's to do.
+
+**Open follow-ups (not started):**
+1. Merge `task1-skeleton` → `main` (PR), so the hook + code are on the default branch.
+2. Packaging/release wiring (GitHub Actions CI + a tag-driven release that attaches the jar).
+3. Live smoke test against a real staging Doris (needs FE/Kafka endpoints + creds + network).
+
+---
 
 Build process reminder: `source dev-env.sh` (cross-platform; sets `JAVA_HOME` + `MAVEN_OPTS`)
 then `mvn …`. From-zero setup on a new machine (incl. `git clone`) is in `SETUP.md`. The
