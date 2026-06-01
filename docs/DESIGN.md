@@ -86,6 +86,16 @@ manually / in a real environment.
    `DORIS_PASSWORD=... java -jar target/spark-doris-ingestion.jar examples/job-config.yaml`
    (set `spark.master` in `extra_conf` for off-cluster local runs). Tests in
    `IngestionPipelineTest`.
-4. **Task 4 — Error handling / retry.**
+4. **Task 4 — Error handling / retry** ✅ A restart supervisor wraps the query: on a transient
+   failure it restarts with exponential backoff (resuming from the checkpoint, so no data loss)
+   instead of dying. New optional `retry:` config section ([`RetryConfig`](../src/main/java/com/yourteam/ingestion/config/RetryConfig.java),
+   defaults applied when omitted) drives [`RetryPolicy`](../src/main/java/com/yourteam/ingestion/retry/RetryPolicy.java)
+   (backoff maths / give-up / counter-reset, pure & unit-tested) and
+   [`RetrySupervisor`](../src/main/java/com/yourteam/ingestion/retry/RetrySupervisor.java) (the
+   restart loop, run/sleep/clock injected so it's tested in-JVM without Spark). `IngestionJob.main`
+   runs the query through the supervisor; the shutdown hook drains & stops whichever query is
+   active (graceful drain). Schema-agnostic ⇒ no parse-failure poison messages; bad writes are
+   covered by the connector's `doris.sink.max-retries` plus the restart loop (a per-record DLQ is
+   intentionally out of scope). Tests: `RetryPolicyTest`, `RetrySupervisorTest`, `ConfigLoaderTest`.
 5. **Task 5 — Metrics + structured (JSON) logging.**
 6. **Task 6 — Integration tests** (embedded-kafka; mock/stub Doris).

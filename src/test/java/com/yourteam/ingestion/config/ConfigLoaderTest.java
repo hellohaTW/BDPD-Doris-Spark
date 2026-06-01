@@ -45,6 +45,12 @@ class ConfigLoaderTest {
         assertEquals("append", cfg.getSpark().getOutputMode());
         assertEquals("30 seconds", cfg.getSpark().getTrigger());
         assertEquals("4", cfg.getSpark().getExtraConf().get("spark.sql.shuffle.partitions"));
+
+        assertEquals(10, cfg.getRetry().getMaxRestarts());
+        assertEquals(3L, cfg.getRetry().getInitialBackoffSeconds());
+        assertEquals(120L, cfg.getRetry().getMaxBackoffSeconds());
+        assertEquals(1.5, cfg.getRetry().getBackoffMultiplier());
+        assertEquals(300L, cfg.getRetry().getResetAfterSeconds());
     }
 
     @Test
@@ -73,6 +79,13 @@ class ConfigLoaderTest {
         // Omitted maps are empty, never null.
         assertEquals(Collections.emptyMap(), cfg.getDoris().getOptions());
         assertEquals(Collections.emptyMap(), cfg.getSpark().getExtraConf());
+
+        // Omitted retry section falls back to the default policy.
+        assertEquals(5, cfg.getRetry().getMaxRestarts());
+        assertEquals(5L, cfg.getRetry().getInitialBackoffSeconds());
+        assertEquals(300L, cfg.getRetry().getMaxBackoffSeconds());
+        assertEquals(2.0, cfg.getRetry().getBackoffMultiplier());
+        assertEquals(600L, cfg.getRetry().getResetAfterSeconds());
     }
 
     @Test
@@ -109,6 +122,19 @@ class ConfigLoaderTest {
         ConfigException ex = assertThrows(ConfigException.class,
                 () -> cfg.getDoris().resolvePassword(Collections.emptyMap()));
         assertTrue(ex.getMessage().contains("DORIS_PW"), ex.getMessage());
+    }
+
+    @Test
+    void failsFastOnInvalidRetryValues() {
+        String bad =
+                "kafka: {bootstrap_servers: b, topic: t}\n"
+                        + "doris: {fenodes: fe, database: db, table: tbl, user: u, password_env: PW}\n"
+                        + "spark: {checkpoint_location: /tmp/c}\n"
+                        + "retry: {backoff_multiplier: 0.5, max_restarts: -2}\n";
+
+        ConfigException ex = assertThrows(ConfigException.class, () -> ConfigLoader.load(yaml(bad)));
+        assertTrue(ex.getMessage().contains("backoff_multiplier"), ex.getMessage());
+        assertTrue(ex.getMessage().contains("max_restarts"), ex.getMessage());
     }
 
     @Test

@@ -1,9 +1,13 @@
 package com.yourteam.ingestion;
 
 import java.nio.file.Paths;
+import java.util.concurrent.atomic.AtomicReference;
 
 import com.yourteam.ingestion.config.ConfigLoader;
 import com.yourteam.ingestion.config.JobConfig;
+import com.yourteam.ingestion.config.RetryConfig;
+import com.yourteam.ingestion.retry.RetryPolicy;
+import com.yourteam.ingestion.retry.RetrySupervisor;
 import com.yourteam.ingestion.transform.MessageTransform;
 
 import org.apache.spark.sql.Dataset;
@@ -56,24 +60,38 @@ public final class IngestionJob {
                 config.getDoris().getFenodes());
 
         SparkSession spark = IngestionPipeline.buildSession(config, APP_NAME);
-        try {
-            Dataset<Row> kafka = IngestionPipeline.readKafkaStream(spark, config.getKafka());
-            Dataset<Row> doris = MessageTransform.toDorisColumns(kafka);
-            StreamingQuery query = IngestionPipeline.dorisWriter(doris, config, password).start();
 
-            // Stop the query cleanly on SIGTERM/Ctrl-C so the checkpoint is left consistent.
-            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-                log.info("Shutdown signal received — stopping streaming query");
+        // The query is recreated on each restart; the shutdown hook stops whichever one is active
+        // so SIGTERM/Ctrl-C drains the current batch and leaves the checkpoint consistent. A clean
+        // stop makes awaitTermination return normally, which ends the supervisor loop (no restart).
+        AtomicReference<StreamingQuery> currentQuery = new AtomicReference<>();
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            log.info("Shutdown signal received — draining and stopping streaming query");
+            StreamingQuery q = currentQuery.get();
+            if (q != null) {
                 try {
-                    query.stop();
+                    q.stop();
                 } catch (Exception e) {
                     log.warn("Error while stopping query", e);
                 }
-            }, "ingestion-shutdown"));
+            }
+        }, "ingestion-shutdown"));
 
-            log.info("Streaming started (output={}, trigger={}). Awaiting termination.",
-                    config.getSpark().getOutputMode(), config.getSpark().getTrigger());
-            query.awaitTermination();
+        try {
+            Dataset<Row> kafka = IngestionPipeline.readKafkaStream(spark, config.getKafka());
+            Dataset<Row> doris = MessageTransform.toDorisColumns(kafka);
+
+            RetryConfig retryConfig = config.getRetry() != null ? config.getRetry() : RetryConfig.defaults();
+            RetryPolicy policy = RetryPolicy.from(retryConfig);
+
+            // Restart on transient failures with backoff; resume from the checkpoint each time.
+            RetrySupervisor.run(() -> {
+                StreamingQuery query = IngestionPipeline.dorisWriter(doris, config, password).start();
+                currentQuery.set(query);
+                log.info("Streaming started (output={}, trigger={}). Awaiting termination.",
+                        config.getSpark().getOutputMode(), config.getSpark().getTrigger());
+                query.awaitTermination();
+            }, policy);
         } catch (Exception e) {
             log.error("Ingestion job failed", e);
             System.exit(1);

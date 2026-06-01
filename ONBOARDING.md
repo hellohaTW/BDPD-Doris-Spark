@@ -194,14 +194,25 @@ spark-submit), `readKafkaStream` (`includeHeaders=true`, optional `maxOffsetsPer
 (`once`/`availableNow`/`"N seconds"`/null), `dorisWriter`. `main` loads config → resolves
 password → starts query → shutdown hook → `awaitTermination`; config/usage errors exit code 2
 (verified via `java -jar`). `IngestionPipelineTest` (3 tests: in-JVM Kafka read, doris option
-mapping, trigger parsing). **Full suite now 11 tests green.** Run a real job:
+mapping, trigger parsing). Run a real job:
 `DORIS_PASSWORD=... java -jar target/spark-doris-ingestion.jar examples/job-config.yaml`
 (put `spark.master: "local[*]"` in `extra_conf` for off-cluster local runs).
 
+**Task 4 — DONE (2026-06-01):** restart/retry on transient failures. New optional `retry:`
+config section (`RetryConfig`, all defaults so existing configs are unchanged; range-validated)
+drives `com.yourteam.ingestion.retry.RetryPolicy` (exponential backoff, cap, give-up after
+`max_restarts`, counter reset after a healthy `reset_after_seconds` run — pure, unit-tested) and
+`RetrySupervisor` (the start→await→restart loop; the query lifecycle, sleep and clock are injected
+as functional interfaces so it's tested in-JVM with plain lambdas, no Spark/Doris). `IngestionJob.main`
+now runs the query through the supervisor and the shutdown hook drains & stops whichever query is
+active (graceful drain). Restarts resume from the checkpoint → no data loss. Schema-agnostic ⇒ no
+parse-failure poison messages; bad Doris writes are handled by the connector's `doris.sink.max-retries`
+(pass-through) plus the restart loop — a per-record DLQ is intentionally out of scope. New tests:
+`RetryPolicyTest` (5), `RetrySupervisorTest` (4), `ConfigLoaderTest` +1. **Full suite now 21 tests green.**
+
 **Next, in order:**
-1. Task 4 — error handling / retry (connect/write failures, poison messages, graceful drain).
-2. Task 5 — metrics (StreamingQueryListener) + structured JSON logging.
-3. Task 6 — integration tests (embedded-kafka; mock/stub Doris).
+1. Task 5 — metrics (StreamingQueryListener) + structured JSON logging.
+2. Task 6 — integration tests (embedded-kafka; mock/stub Doris).
 
 Build process reminder: `source dev-env.sh` (cross-platform; sets `JAVA_HOME` + `MAVEN_OPTS`)
 then `mvn …`. From-zero setup on a new machine (incl. `git clone`) is in `SETUP.md`. The

@@ -21,3 +21,10 @@ spark:
   trigger: "30 seconds"
   extra_conf:
     spark.sql.shuffle.partitions: "4"
+
+retry:
+  max_restarts: 10
+  initial_backoff_seconds: 3
+  max_backoff_seconds: 120
+  backoff_multiplier: 1.5
+  reset_after_seconds: 300

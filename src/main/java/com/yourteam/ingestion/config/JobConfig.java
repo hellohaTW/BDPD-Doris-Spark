@@ -20,6 +20,10 @@ public class JobConfig {
     DorisConfig doris;
     SparkStreamingConfig spark;
 
+    /** Optional. Restart/retry policy; defaults applied when the {@code retry:} section is omitted. */
+    @Builder.Default
+    RetryConfig retry = RetryConfig.defaults();
+
     /**
      * Fails fast if any required section or field is missing/blank. Collects every problem
      * into one message rather than failing on the first.
@@ -42,6 +46,10 @@ public class JobConfig {
             missing.add("spark");
         } else {
             spark.collectMissing(missing);
+        }
+        // retry is optional with defaults; only present (or default) instances are range-checked.
+        if (retry != null) {
+            retry.collectMissing(missing);
         }
         if (!missing.isEmpty()) {
             throw new ConfigException(
