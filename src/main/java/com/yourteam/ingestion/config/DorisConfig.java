@@ -31,7 +31,11 @@ public class DorisConfig {
     /** Required. Doris user. */
     String user;
 
-    /** Required. Name of the env var holding the Doris password (NOT the password itself). */
+    /**
+     * Optional. Name of the env var holding the Doris password (NOT the password itself). If it is
+     * omitted, or the named env var is not present, the password defaults to empty ({@code ""}) —
+     * which is what a Doris user with no password expects.
+     */
     String passwordEnv;
 
     /** Optional. Extra {@code doris.*} writer options passed through verbatim. */
@@ -48,17 +52,17 @@ public class DorisConfig {
         return resolvePassword(System.getenv());
     }
 
-    /** Testable overload: reads the password from the supplied environment map. */
+    /**
+     * Resolves the password from the supplied environment. Defaults to empty ({@code ""}) when no
+     * {@code password_env} is configured or the named env var is absent — it never throws, so a
+     * passwordless Doris user works out of the box.
+     */
     public String resolvePassword(Map<String, String> env) {
         if (Configs.isBlank(passwordEnv)) {
-            throw new ConfigException("doris.password_env is not set");
+            return "";
         }
         String password = env.get(passwordEnv);
-        if (password == null) {
-            throw new ConfigException(
-                    "Env var '" + passwordEnv + "' (doris.password_env) is not set");
-        }
-        return password;
+        return password != null ? password : "";
     }
 
     void collectMissing(List<String> missing) {
@@ -74,8 +78,6 @@ public class DorisConfig {
         if (Configs.isBlank(user)) {
             missing.add("doris.user");
         }
-        if (Configs.isBlank(passwordEnv)) {
-            missing.add("doris.password_env");
-        }
+        // password_env is optional — an omitted/absent password defaults to empty (see resolvePassword).
     }
 }

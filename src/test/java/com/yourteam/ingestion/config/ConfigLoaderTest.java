@@ -118,10 +118,20 @@ class ConfigLoaderTest {
         env.put("DORIS_PW", "s3cret");
         assertEquals("s3cret", cfg.getDoris().resolvePassword(env));
 
-        // Missing env var -> ConfigException naming the var.
-        ConfigException ex = assertThrows(ConfigException.class,
-                () -> cfg.getDoris().resolvePassword(Collections.emptyMap()));
-        assertTrue(ex.getMessage().contains("DORIS_PW"), ex.getMessage());
+        // Named env var absent -> defaults to empty password (no exception).
+        assertEquals("", cfg.getDoris().resolvePassword(Collections.emptyMap()));
+    }
+
+    @Test
+    void passwordDefaultsToEmptyWhenPasswordEnvOmitted() {
+        // doris.password_env is optional; omitting it is valid and yields an empty password.
+        JobConfig cfg = ConfigLoader.load(yaml(
+                "kafka: {bootstrap_servers: b, topic: t}\n"
+                        + "doris: {fenodes: fe, database: db, table: tbl, user: u}\n"
+                        + "spark: {checkpoint_location: /tmp/c}\n"));
+
+        assertNull(cfg.getDoris().getPasswordEnv());
+        assertEquals("", cfg.getDoris().resolvePassword(Collections.emptyMap()));
     }
 
     @Test

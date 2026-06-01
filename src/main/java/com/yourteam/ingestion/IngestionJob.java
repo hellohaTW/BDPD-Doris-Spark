@@ -62,6 +62,10 @@ public final class IngestionJob {
                 config.getKafka().getTopic(),
                 config.getDoris().tableIdentifier(),
                 config.getDoris().getFenodes());
+        if (password.isEmpty()) {
+            log.warn("Doris password is empty (password_env='{}' is unset or not configured) — "
+                    + "connecting with no password", config.getDoris().getPasswordEnv());
+        }
 
         SparkSession spark = IngestionPipeline.buildSession(config, APP_NAME);
 

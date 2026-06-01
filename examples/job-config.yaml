@@ -14,7 +14,8 @@ doris:
   database: "ods"
   table: "orders_raw"                 # must have the fixed 7-column layout
   user: "ingest"
-  password_env: "DORIS_PASSWORD"      # name of the env var holding the password (never inline it)
+  password_env: "DORIS_PASSWORD"      # optional: env var holding the password (never inline it).
+                                      #   omit it, or leave the var unset, for an empty password.
   options:                            # optional; passed to the Doris writer VERBATIM,
     doris.sink.batch.size: "100000"   #   so use the connector's full option keys (doris.*)
     doris.sink.max-retries: "3"

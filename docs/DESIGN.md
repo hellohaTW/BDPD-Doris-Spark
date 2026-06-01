@@ -52,12 +52,13 @@ Immutable Lombok `@Value` classes, parsed from YAML via `jackson-dataformat-yaml
 
 - `JobConfig` — root; holds the sections below + validation.
 - `KafkaConfig` — `bootstrap_servers`, `topic`, `starting_offsets`, `max_offsets_per_trigger`.
-- `DorisConfig` — `fenodes`, `database`, `table`, `user`, `password_env` (name of the env var
-  holding the password — never store the password in YAML), extra options.
+- `DorisConfig` — `fenodes`, `database`, `table`, `user`, `password_env` (optional: name of the env
+  var holding the password — never store the password in YAML), extra options.
 - `SparkStreamingConfig` — `checkpoint_location`, `trigger`, `output_mode`, `extra_conf` map.
 
-Validation fails fast on missing required fields; the Doris password is read from the env var
-named by `password_env`.
+Validation fails fast on missing required fields. The Doris password is read from the env var named
+by `password_env`; if that is omitted or the env var is absent, the password **defaults to empty**
+(`""`) so a passwordless Doris user works out of the box (the job logs a WARN in that case).
 
 ## Validation strategy (no Docker, no Doris)
 
