@@ -60,6 +60,10 @@ Validation fails fast on missing required fields. The Doris password is read fro
 by `password_env`; if that is omitted or the env var is absent, the password **defaults to empty**
 (`""`) so a passwordless Doris user works out of the box (the job logs a WARN in that case).
 
+The config-file argument may be a local path or a Hadoop-FileSystem URI (`s3a://`, `hdfs://`,
+`file://`); `ConfigLoader.load(String)` reads URIs via the Hadoop `FileSystem` and plain paths via
+NIO. (`hadoop-client-api` is a `provided` dep — compile-only; the cluster supplies it at runtime.)
+
 ## Validation strategy (no Docker, no Doris)
 
 - **Step A** ([MessageTransformTest](../src/test/java/com/yourteam/ingestion/transform/MessageTransformTest.java)):

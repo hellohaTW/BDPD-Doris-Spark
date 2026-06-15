@@ -18,6 +18,8 @@
 
         <scala.binary.version>2.12</scala.binary.version>
         <spark.version>3.5.1</spark.version>
+        <!-- Matches the Hadoop that Spark 3.5.1 bundles; used only to compile against the FileSystem API -->
+        <hadoop.version>3.3.4</hadoop.version>
         <doris.connector.version>25.1.0</doris.connector.version>
         <!-- Pinned to Spark 3.5's bundled Jackson to avoid conflicts -->
         <jackson.version>2.15.2</jackson.version>
@@ -41,6 +43,15 @@
             <groupId>org.apache.spark</groupId>
             <artifactId>spark-sql_${scala.binary.version}</artifactId>
             <version>${spark.version}</version>
+            <scope>provided</scope>
+        </dependency>
+        <!-- Hadoop FileSystem API (to read the config from s3a://, hdfs:// ...). provided: the
+             cluster supplies it at runtime (and the Doris connector uber-jar bundles it for
+             local java -jar runs), so it is not packaged into the fat jar. -->
+        <dependency>
+            <groupId>org.apache.hadoop</groupId>
+            <artifactId>hadoop-client-api</artifactId>
+            <version>${hadoop.version}</version>
             <scope>provided</scope>
         </dependency>
 

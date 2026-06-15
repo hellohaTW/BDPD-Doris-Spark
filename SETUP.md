@@ -126,7 +126,7 @@ mvn -B clean package
 Expected:
 - First run downloads a lot (Spark, the Doris connector uber-jar). Subsequent runs are seconds.
 - `BUILD SUCCESS`.
-- `target/spark-doris-ingestion.jar` (~104 MB fat jar).
+- `target/spark-doris-ingestion.jar` (~86 MB fat jar).
 - `Tests run: 29, Failures: 0, Errors: 0, Skipped: 0` across 10 test classes.
 - A wall of `overlapping resource`/`overlapping classes` **WARNINGs** from the shade plugin —
   **these are harmless** (the Doris connector bundles hadoop/guava/gson). Do not "fix" them.

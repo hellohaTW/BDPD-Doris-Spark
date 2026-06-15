@@ -27,7 +27,7 @@ The jar bundles the Kafka and Doris connectors, so **no `--packages` is needed**
 
 ```bash
 source dev-env.sh            # JDK 17 + the Spark Java-17 module flags
-mvn -B clean package         # -> target/spark-doris-ingestion.jar (~104 MB), 29 tests green
+mvn -B clean package         # -> target/spark-doris-ingestion.jar (~86 MB), 33 tests green
 ```
 
 Copy the jar and your `job-config.yaml` to the host you will submit from.
@@ -76,7 +76,29 @@ retry:   { max_restarts: 5, initial_backoff_seconds: 5, max_backoff_seconds: 300
 ```
 
 The **password is read on the driver** from the env var named by `doris.password_env`, then handed
-to the writer — so only the driver needs it in its environment (see §6).
+to the writer — so only the driver needs it in its environment (see §6). If `password_env` is
+omitted or the env var is unset, the password defaults to empty (`""`) and the driver logs a WARN.
+
+### Where the config file can live
+
+The config-file argument may be a **local path** or a **Hadoop-FileSystem URI**:
+
+```bash
+spark-submit ... target/spark-doris-ingestion.jar /path/to/job-config.yaml          # local
+spark-submit ... target/spark-doris-ingestion.jar s3a://my-bucket/job-config.yaml   # S3
+spark-submit ... target/spark-doris-ingestion.jar hdfs:///configs/job-config.yaml   # HDFS
+```
+
+- `s3a://` / `hdfs://` are read via the Hadoop `FileSystem` (the same mechanism the checkpoint uses).
+  For `s3a://` the runtime needs `hadoop-aws` + the AWS SDK and S3 credentials — on most clusters
+  these are already configured (instance profile / `fs.s3a.*`) because the checkpoint also lives on
+  S3. If `hadoop-aws` is missing, add `--packages org.apache.hadoop:hadoop-aws:3.3.4`.
+- **Zero-dependency fallback** (works in any mode, no S3 setup needed): stage the file locally first.
+  ```bash
+  aws s3 cp s3://my-bucket/job-config.yaml /tmp/job-config.yaml
+  spark-submit ... target/spark-doris-ingestion.jar /tmp/job-config.yaml
+  ```
+- Note: a bare `s3://...` (no `a`) is **not** supported by the bundled connector; use `s3a://`.
 
 ---
 

@@ -86,7 +86,7 @@ in `kafka_2.13` (Scala 2.13) and clashes with Spark's 2.12.
     in `META-INF/services` survives shading.
   - Filter out `META-INF/*.SF|*.DSA|*.RSA` and `module-info.class` (else "Invalid signature file").
   - `minimizeJar=false` (Spark uses heavy reflection).
-- Result: `target/spark-doris-ingestion.jar` (~104 MB — the Doris connector is itself an
+- Result: `target/spark-doris-ingestion.jar` (~86 MB — the Doris connector is itself an
   uber-jar bundling hadoop/guava/gson; the shade "overlapping resource" warnings come from
   that and are harmless).
 - `logback.xml`: console appender; `org.apache.spark` / `org.apache.kafka` at WARN.
@@ -254,8 +254,14 @@ Stopped here for the day; pick up from this list next time.
 - **Doris password now defaults to empty.** `doris.password_env` is optional; `resolvePassword`
   returns `""` (no throw) when it's omitted or the env var is absent. `main` logs a WARN in that
   case. ⚠️ This removed the old fail-fast safety — revisit if prod should require a password.
+- **Config file can live on S3/HDFS.** `ConfigLoader.load(String)` now accepts a Hadoop URI
+  (`s3a://`, `hdfs://`, `file://`) and reads it via the Hadoop `FileSystem`; plain paths still use
+  NIO. Added `hadoop-client-api` 3.3.4 as a **provided** dep (compile only; the cluster/connector
+  supplies it at runtime) — this also stopped Hadoop being bundled, so the fat jar is now **~86 MB**
+  (was ~104). `s3a://` needs `hadoop-aws` + creds at runtime; RUNBOOK §4 also documents the
+  `aws s3 cp` pre-stage fallback.
 
-**Full suite: 30 tests green** (`mvn -B clean package`, fat jar ~104 MB).
+**Full suite: 33 tests green** (`mvn -B clean package`, fat jar ~86 MB).
 
 **Branch state (IMPORTANT for next session):**
 - Work lives on **`task1-skeleton`** and **`claude/brave-wozniak-qQJmR`** — both at the same commit.
