@@ -1,5 +1,6 @@
 package com.yourteam.ingestion;
 
+import java.nio.file.Paths;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -49,7 +50,7 @@ public final class IngestionJob {
         JobConfig config;
         String password;
         try {
-            config = ConfigLoader.load(args[0]);
+            config = ConfigLoader.load(Paths.get(args[0]));
             password = config.getDoris().resolvePassword();
         } catch (RuntimeException e) {
             // Bad path / malformed YAML / missing field / unset password env — operator error.

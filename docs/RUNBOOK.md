@@ -27,7 +27,7 @@ The jar bundles the Kafka and Doris connectors, so **no `--packages` is needed**
 
 ```bash
 source dev-env.sh            # JDK 17 + the Spark Java-17 module flags
-mvn -B clean package         # -> target/spark-doris-ingestion.jar (~86 MB), 33 tests green
+mvn -B clean package         # -> target/spark-doris-ingestion.jar (~104 MB), 33 tests green
 ```
 
 Copy the jar and your `job-config.yaml` to the host you will submit from.
@@ -87,24 +87,10 @@ omitted or the env var is unset, the password defaults to empty (`""`) and the d
 
 ### Where the config file can live
 
-The config-file argument may be a **local path** or a **Hadoop-FileSystem URI**:
-
-```bash
-spark-submit ... target/spark-doris-ingestion.jar /path/to/job-config.yaml          # local
-spark-submit ... target/spark-doris-ingestion.jar s3a://my-bucket/job-config.yaml   # S3
-spark-submit ... target/spark-doris-ingestion.jar hdfs:///configs/job-config.yaml   # HDFS
-```
-
-- `s3a://` / `hdfs://` are read via the Hadoop `FileSystem` (the same mechanism the checkpoint uses).
-  For `s3a://` the runtime needs `hadoop-aws` + the AWS SDK and S3 credentials — on most clusters
-  these are already configured (instance profile / `fs.s3a.*`) because the checkpoint also lives on
-  S3. If `hadoop-aws` is missing, add `--packages org.apache.hadoop:hadoop-aws:3.3.4`.
-- **Zero-dependency fallback** (works in any mode, no S3 setup needed): stage the file locally first.
-  ```bash
-  aws s3 cp s3://my-bucket/job-config.yaml /tmp/job-config.yaml
-  spark-submit ... target/spark-doris-ingestion.jar /tmp/job-config.yaml
-  ```
-- Note: a bare `s3://...` (no `a`) is **not** supported by the bundled connector; use `s3a://`.
+The config-file argument is a **local path** on the driver (absolute, or relative to the driver's
+working directory). In cluster mode, ship it with `--files job-config.yaml` and pass the filename.
+If the file lives on S3/HDFS, stage it locally first, e.g. `aws s3 cp s3://bucket/job-config.yaml
+/tmp/job-config.yaml` and pass `/tmp/job-config.yaml`.
 
 ---
 

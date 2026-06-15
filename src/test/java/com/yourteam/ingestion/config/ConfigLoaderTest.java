@@ -1,7 +1,6 @@
 package com.yourteam.ingestion.config;
 
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
@@ -151,37 +150,5 @@ class ConfigLoaderTest {
     @Test
     void rejectsMalformedYaml() {
         assertThrows(ConfigException.class, () -> ConfigLoader.load(yaml("kafka: [this is not a map")));
-    }
-
-    private static final String MINIMAL_YAML =
-            "kafka: {bootstrap_servers: b, topic: t}\n"
-                    + "doris: {fenodes: fe, database: db, table: tbl, user: u}\n"
-                    + "spark: {checkpoint_location: /tmp/c}\n";
-
-    @Test
-    void loadsFromPlainLocalPathString(@TempDir java.nio.file.Path tmp) throws Exception {
-        java.nio.file.Path file = tmp.resolve("job.yaml");
-        java.nio.file.Files.writeString(file, MINIMAL_YAML);
-
-        JobConfig cfg = ConfigLoader.load(file.toString());          // plain path -> NIO branch
-        assertEquals("t", cfg.getKafka().getTopic());
-    }
-
-    @Test
-    void loadsFromUriViaHadoopFileSystem(@TempDir java.nio.file.Path tmp) throws Exception {
-        java.nio.file.Path file = tmp.resolve("job.yaml");
-        java.nio.file.Files.writeString(file, MINIMAL_YAML);
-
-        // A file:// URI exercises the same Hadoop FileSystem code path used for s3a:// / hdfs://.
-        JobConfig cfg = ConfigLoader.load(file.toUri().toString());
-        assertEquals("t", cfg.getKafka().getTopic());
-        assertEquals("db.tbl", cfg.getDoris().tableIdentifier());
-    }
-
-    @Test
-    void missingUriYieldsConfigException() {
-        ConfigException ex = assertThrows(ConfigException.class,
-                () -> ConfigLoader.load("file:///nonexistent/path/job-" + System.nanoTime() + ".yaml"));
-        assertTrue(ex.getMessage().contains("Cannot read config"), ex.getMessage());
     }
 }

@@ -86,7 +86,7 @@ in `kafka_2.13` (Scala 2.13) and clashes with Spark's 2.12.
     in `META-INF/services` survives shading.
   - Filter out `META-INF/*.SF|*.DSA|*.RSA` and `module-info.class` (else "Invalid signature file").
   - `minimizeJar=false` (Spark uses heavy reflection).
-- Result: `target/spark-doris-ingestion.jar` (~86 MB — the Doris connector is itself an
+- Result: `target/spark-doris-ingestion.jar` (~104 MB — the Doris connector is itself an
   uber-jar bundling hadoop/guava/gson; the shade "overlapping resource" warnings come from
   that and are harmless).
 - `logback.xml`: console appender; `org.apache.spark` / `org.apache.kafka` at WARN.
@@ -254,12 +254,13 @@ Stopped here for the day; pick up from this list next time.
 - **Doris password now defaults to empty.** `doris.password_env` is optional; `resolvePassword`
   returns `""` (no throw) when it's omitted or the env var is absent. `main` logs a WARN in that
   case. ⚠️ This removed the old fail-fast safety — revisit if prod should require a password.
-- **Config file can live on S3/HDFS.** `ConfigLoader.load(String)` now accepts a Hadoop URI
-  (`s3a://`, `hdfs://`, `file://`) and reads it via the Hadoop `FileSystem`; plain paths still use
-  NIO. Added `hadoop-client-api` 3.3.4 as a **provided** dep (compile only; the cluster/connector
-  supplies it at runtime) — this also stopped Hadoop being bundled, so the fat jar is now **~86 MB**
-  (was ~104). `s3a://` needs `hadoop-aws` + creds at runtime; RUNBOOK §4 also documents the
-  `aws s3 cp` pre-stage fallback.
+- **Config loading is local-file only.** An earlier change (commit c68ae62) let `ConfigLoader`
+  read the config from `s3a://`/`hdfs://` via the Hadoop FileSystem; it was **rolled back** at the
+  user's request (a `find_sec_bugs.PATH_TRAVERSAL_IN` finding landed on the new `Paths.get(location)`).
+  `ConfigLoader` is back to local paths only (`load(Path)` / `load(InputStream)`), the
+  `hadoop-client-api` dep is gone, and the jar is **~104 MB** again. ⚠️ The path-traversal sink still
+  exists (now `Paths.get(args[0])` in `IngestionJob.main`); rollback moved it, it did not remove it —
+  hardening (e.g. base-dir allowlist or normalize/validate) is still TODO if the scan gate must pass.
 
 - **Kafka SASL/SCRAM wired into the source.** `IngestionPipeline.readKafkaStream` (via the new
   pure `kafkaOptions`) hardcodes `kafka.security.protocol=SASL_PLAINTEXT` +
@@ -275,7 +276,7 @@ Stopped here for the day; pick up from this list next time.
   The column-building (`fakeColumns`) is unit-tested (`FakeLoadJobTest`); the Doris write reuses
   `IngestionPipeline.dorisOptions`. RUNBOOK §7b documents it.
 
-**Full suite: 36 tests green** (`mvn -B clean package`, fat jar ~86 MB).
+**Full suite: 33 tests green** (`mvn -B clean package`, fat jar ~104 MB).
 
 **Branch state (IMPORTANT for next session):**
 - Work lives on **`task1-skeleton`** and **`claude/brave-wozniak-qQJmR`** — both at the same commit.
