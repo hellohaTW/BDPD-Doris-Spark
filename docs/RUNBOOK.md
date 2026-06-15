@@ -205,6 +205,35 @@ stops the active query, draining the in-flight batch and leaving the checkpoint 
 
 ---
 
+## 7b. Load generator (fake data → Doris)
+
+A second job in the **same jar**, `com.yourteam.ingestion.FakeLoadJob`, continuously generates
+~100k rows/sec of fake records (the fixed 7-column layout) from Spark's `rate` source and writes
+them straight into Doris `fake_kafka_test` — **no Kafka involved**. Use it to load-test the Doris
+sink. Settings (FE nodes, database, table, user, password, rows/sec, checkpoint) are **hardcoded
+constants at the top of `FakeLoadJob`** — edit them for your cluster and rebuild.
+
+```bash
+spark-submit \
+  --master spark://spark-master:7077 --deploy-mode client \
+  --class com.yourteam.ingestion.FakeLoadJob \
+  --name spark-doris-fake-load \
+  --conf "spark.driver.extraJavaOptions=$ADD_OPENS" \
+  --conf "spark.executor.extraJavaOptions=$ADD_OPENS" \
+  --total-executor-cores 8 --executor-memory 4g \
+  target/spark-doris-ingestion.jar
+```
+
+- No app argument — it's self-contained (all config is in the constants).
+- Watch actual throughput via the same JSON metrics: `... | grep '"event":"batch_progress"'`
+  (`processed_rows_per_second`). Hitting 100k/s depends on the cluster cores and Doris/stream-load
+  capacity; tune `--total-executor-cores`, `spark.sql.shuffle.partitions`, and the connector's
+  `doris.sink.batch.size`.
+- Create `fake_kafka_test` with the same 7-column DDL as §3 first.
+- Stop it the same way (Ctrl-C / `--kill`); the shutdown hook stops the query cleanly.
+
+---
+
 ## 8. Troubleshooting
 
 | Symptom | Cause / fix |

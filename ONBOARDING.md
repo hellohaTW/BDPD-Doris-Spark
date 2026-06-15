@@ -268,7 +268,14 @@ Stopped here for the day; pick up from this list next time.
   `IngestionPipelineTest` and `EndToEndIngestionTest` now read inline-PLAINTEXT, and `kafkaOptions`
   is asserted by pure unit tests.
 
-**Full suite: 35 tests green** (`mvn -B clean package`, fat jar ~86 MB).
+- **Load generator job added.** `com.yourteam.ingestion.FakeLoadJob` — a second main class in the
+  same jar that streams ~100k rows/sec of fake 7-column records from Spark's `rate` source straight
+  into Doris `fake_kafka_test` (no Kafka). All settings are hardcoded constants at the top; run via
+  `spark-submit --class com.yourteam.ingestion.FakeLoadJob --name spark-doris-fake-load ... jar`.
+  The column-building (`fakeColumns`) is unit-tested (`FakeLoadJobTest`); the Doris write reuses
+  `IngestionPipeline.dorisOptions`. RUNBOOK §7b documents it.
+
+**Full suite: 36 tests green** (`mvn -B clean package`, fat jar ~86 MB).
 
 **Branch state (IMPORTANT for next session):**
 - Work lives on **`task1-skeleton`** and **`claude/brave-wozniak-qQJmR`** — both at the same commit.
