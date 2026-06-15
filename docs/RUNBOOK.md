@@ -79,6 +79,12 @@ The **password is read on the driver** from the env var named by `doris.password
 to the writer — so only the driver needs it in its environment (see §6). If `password_env` is
 omitted or the env var is unset, the password defaults to empty (`""`) and the driver logs a WARN.
 
+> **Kafka SASL/SCRAM:** the source is wired for a secured cluster — `IngestionPipeline.kafkaOptions`
+> sets `kafka.security.protocol=SASL_PLAINTEXT` and `kafka.sasl.mechanism=SCRAM-SHA-512`. You **must
+> fill in `kafka.sasl.jaas.config`** (currently empty in the code) with your JAAS line, e.g.
+> `org.apache.kafka.common.security.scram.ScramLoginModule required username="..." password="...";`,
+> before running against real Kafka. For a plaintext broker, remove these three options.
+
 ### Where the config file can live
 
 The config-file argument may be a **local path** or a **Hadoop-FileSystem URI**:

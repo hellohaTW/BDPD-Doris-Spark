@@ -30,6 +30,7 @@ import java.util.Properties;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class IngestionPipelineTest {
 
@@ -97,8 +98,16 @@ class IngestionPipelineTest {
         publish("k-2", "{\"v\":2}");
         publish("k-3", "{\"v\":3}");
 
-        // Exercise the real production read path.
-        Dataset<Row> kafka = IngestionPipeline.readKafkaStream(spark, jobConfig.getKafka());
+        // Read inline against the PLAINTEXT embedded broker. (readKafkaStream hardcodes SASL for a
+        // secured cluster, which can't talk to this broker; its options are asserted in
+        // kafkaOptionsIncludeSaslAndCoreSettings below.)
+        Dataset<Row> kafka = spark.readStream()
+                .format("kafka")
+                .option("kafka.bootstrap.servers", "localhost:" + kafkaConfig.kafkaPort())
+                .option("subscribe", TOPIC)
+                .option("startingOffsets", "earliest")
+                .option("includeHeaders", "true")
+                .load();
         Dataset<Row> doris = MessageTransform.toDorisColumns(kafka);
 
         StreamingQuery query = doris.writeStream()
@@ -120,6 +129,31 @@ class IngestionPipelineTest {
                 Arrays.asList(rows.get(0).schema().fieldNames()));
         assertEquals("k-1", rows.get(0).<String>getAs("kafka_key"));
         assertEquals("{\"v\":3}", rows.get(2).<String>getAs("kafka_value"));
+    }
+
+    @Test
+    void kafkaOptionsIncludeSaslAndCoreSettings() {
+        KafkaConfig kafka = KafkaConfig.builder()
+                .bootstrapServers("b:9092").topic("orders").startingOffsets("latest")
+                .maxOffsetsPerTrigger(1000L).build();
+
+        Map<String, String> opts = IngestionPipeline.kafkaOptions(kafka);
+
+        assertEquals("b:9092", opts.get("kafka.bootstrap.servers"));
+        assertEquals("orders", opts.get("subscribe"));
+        assertEquals("latest", opts.get("startingOffsets"));
+        assertEquals("true", opts.get("includeHeaders"));
+        assertEquals("SCRAM-SHA-512", opts.get("kafka.sasl.mechanism"));
+        assertEquals("SASL_PLAINTEXT", opts.get("kafka.security.protocol"));
+        assertTrue(opts.containsKey("kafka.sasl.jaas.config"));
+        assertEquals("", opts.get("kafka.sasl.jaas.config"));
+        assertEquals("1000", opts.get("maxOffsetsPerTrigger"));
+    }
+
+    @Test
+    void kafkaOptionsOmitMaxOffsetsPerTriggerWhenUnset() {
+        KafkaConfig kafka = KafkaConfig.builder().bootstrapServers("b:9092").topic("t").build();
+        assertNull(IngestionPipeline.kafkaOptions(kafka).get("maxOffsetsPerTrigger"));
     }
 
     @Test

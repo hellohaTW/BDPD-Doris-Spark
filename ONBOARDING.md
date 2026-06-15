@@ -261,7 +261,14 @@ Stopped here for the day; pick up from this list next time.
   (was ~104). `s3a://` needs `hadoop-aws` + creds at runtime; RUNBOOK §4 also documents the
   `aws s3 cp` pre-stage fallback.
 
-**Full suite: 33 tests green** (`mvn -B clean package`, fat jar ~86 MB).
+- **Kafka SASL/SCRAM wired into the source.** `IngestionPipeline.readKafkaStream` (via the new
+  pure `kafkaOptions`) hardcodes `kafka.security.protocol=SASL_PLAINTEXT` +
+  `kafka.sasl.mechanism=SCRAM-SHA-512` + an **empty `kafka.sasl.jaas.config`** (TODO: fill the JAAS
+  line before running against real Kafka). Because this can't talk to the PLAINTEXT embedded broker,
+  `IngestionPipelineTest` and `EndToEndIngestionTest` now read inline-PLAINTEXT, and `kafkaOptions`
+  is asserted by pure unit tests.
+
+**Full suite: 35 tests green** (`mvn -B clean package`, fat jar ~86 MB).
 
 **Branch state (IMPORTANT for next session):**
 - Work lives on **`task1-skeleton`** and **`claude/brave-wozniak-qQJmR`** — both at the same commit.

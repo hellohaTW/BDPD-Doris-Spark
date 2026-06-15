@@ -34,16 +34,32 @@ public final class IngestionPipeline {
         return builder.getOrCreate();
     }
 
-    /** Opens the Kafka streaming source with {@code includeHeaders=true} per {@link KafkaConfig}. */
-    public static Dataset<Row> readKafkaStream(SparkSession spark, KafkaConfig kafka) {
-        DataStreamReader reader = spark.readStream()
-                .format("kafka")
-                .option("kafka.bootstrap.servers", kafka.getBootstrapServers())
-                .option("subscribe", kafka.getTopic())
-                .option("startingOffsets", kafka.getStartingOffsets())
-                .option("includeHeaders", "true");
+    /**
+     * The Kafka source options: core subscribe/offset settings, {@code includeHeaders=true}, and
+     * SASL/SCRAM auth for a secured cluster. Pure and insertion-ordered so it can be asserted
+     * directly (the live read is exercised against an embedded broker in tests).
+     */
+    public static Map<String, String> kafkaOptions(KafkaConfig kafka) {
+        Map<String, String> options = new LinkedHashMap<>();
+        options.put("kafka.bootstrap.servers", kafka.getBootstrapServers());
+        options.put("subscribe", kafka.getTopic());
+        options.put("startingOffsets", kafka.getStartingOffsets());
+        options.put("includeHeaders", "true");
+        // SASL/SCRAM auth for a secured Kafka cluster.
+        options.put("kafka.sasl.mechanism", "SCRAM-SHA-512");
+        options.put("kafka.security.protocol", "SASL_PLAINTEXT");
+        options.put("kafka.sasl.jaas.config", "");   // TODO: set the JAAS config (username/password)
         if (kafka.getMaxOffsetsPerTrigger() != null) {
-            reader = reader.option("maxOffsetsPerTrigger", kafka.getMaxOffsetsPerTrigger());
+            options.put("maxOffsetsPerTrigger", String.valueOf(kafka.getMaxOffsetsPerTrigger()));
+        }
+        return options;
+    }
+
+    /** Opens the Kafka streaming source, applying {@link #kafkaOptions(KafkaConfig)}. */
+    public static Dataset<Row> readKafkaStream(SparkSession spark, KafkaConfig kafka) {
+        DataStreamReader reader = spark.readStream().format("kafka");
+        for (Map.Entry<String, String> e : kafkaOptions(kafka).entrySet()) {
+            reader = reader.option(e.getKey(), e.getValue());
         }
         return reader.load();
     }

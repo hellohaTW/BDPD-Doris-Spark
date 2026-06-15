@@ -96,11 +96,17 @@ class EndToEndIngestionTest {
         }
     }
 
-    /** Runs the production read+transform path into the stub Doris sink and drains it. */
+    /** Runs the read+transform path into the stub Doris sink and drains it. */
     private static void runOnce(String topic, String checkpoint) throws Exception {
-        KafkaConfig kafka = KafkaConfig.builder()
-                .bootstrapServers(bootstrap).topic(topic).startingOffsets("earliest").build();
-        Dataset<Row> source = IngestionPipeline.readKafkaStream(spark, kafka);
+        // Read inline against the PLAINTEXT embedded broker (IngestionPipeline.readKafkaStream
+        // hardcodes SASL for a secured cluster; its options are unit-tested separately).
+        Dataset<Row> source = spark.readStream()
+                .format("kafka")
+                .option("kafka.bootstrap.servers", bootstrap)
+                .option("subscribe", topic)
+                .option("startingOffsets", "earliest")
+                .option("includeHeaders", "true")
+                .load();
         Dataset<Row> doris = MessageTransform.toDorisColumns(source);
         StreamingQuery query = StubDorisSink.start(doris, checkpoint, Trigger.AvailableNow());
         try {
