@@ -14,7 +14,7 @@ import lombok.extern.jackson.Jacksonized;
 @Value
 @Builder
 @Jacksonized
-public class JobConfig {
+public class JobConfig implements Validatable {
 
     KafkaConfig kafka;
     DorisConfig doris;
@@ -30,6 +30,7 @@ public class JobConfig {
      *
      * @throws ConfigException listing all missing/blank required fields
      */
+    @Override
     public void validate() {
         List<String> missing = new ArrayList<>();
         if (kafka == null) {

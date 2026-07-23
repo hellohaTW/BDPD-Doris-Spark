@@ -125,3 +125,58 @@ manually / in a real environment.
    real cluster.
 
 **All six tasks are complete; the full suite is 29 tests green.**
+
+## One-shot Iceberg → Doris migration (batch, separate job)
+
+A second entry point in the same fat jar,
+[`IcebergMigrationJob`](../src/main/java/com/yourteam/ingestion/IcebergMigrationJob.java), does a
+**one-time batch** copy of an Iceberg table into a Doris table. It is distinct from the streaming
+ingestion job in three ways: the source is an **Iceberg table** (not Kafka), the **source schema is
+preserved verbatim** (a 1:1 column copy — *not* the fixed 7-column Kafka layout), and it is
+**batch**, running once and exiting (no checkpoint/trigger/retry-supervisor).
+
+```
+migration-config.yaml ──► MigrationConfig ──► SparkSession (+ spark.sql.catalog.<name>.*, extra_conf)
+                                                    │
+                                                    ▼
+                          spark.table("catalog.db.table")   (Iceberg source, schema verbatim)
+                                                    │
+                                                    ▼
+                          df.write.format("doris").mode(Overwrite)  (+ doris.* options)
+```
+
+- **Config** ([`MigrationConfig`](../src/main/java/com/yourteam/ingestion/config/MigrationConfig.java)):
+  a new root type — `iceberg` ([`IcebergConfig`](../src/main/java/com/yourteam/ingestion/config/IcebergConfig.java))
+  + reuse of `DorisConfig` (same `password_env` handling) + a batch-only
+  [`SparkBatchConfig`](../src/main/java/com/yourteam/ingestion/config/SparkBatchConfig.java) (`extra_conf`
+  only, no checkpoint/trigger). Both roots implement
+  [`Validatable`](../src/main/java/com/yourteam/ingestion/config/Validatable.java), so `ConfigLoader`
+  parses/validates either through one generic `load(path, type)`. Example:
+  [examples/migration-config.yaml](../examples/migration-config.yaml).
+- **Iceberg source**: read through a Spark v2 catalog. `catalog_type` defaults to **`hive`** (Hive
+  Metastore, `uri: thrift://…`); `hadoop` (needs `warehouse`) and `rest` are also accepted. The
+  `spark.sql.catalog.<name>.*` conf is built by
+  [`IcebergToDorisMigrationPipeline.icebergCatalogConf`](../src/main/java/com/yourteam/ingestion/IcebergToDorisMigrationPipeline.java)
+  (pure, unit-tested). `iceberg-spark-runtime-3.5_2.12` is **bundled** into the fat jar (like the
+  Doris connector), so `spark-submit` needs no extra packages flag.
+- **Doris sink**: `SaveMode.Overwrite` — the connector **replaces the whole target table** (truncate
+  then load; not an atomic swap, so a mid-write failure leaves the table empty/partial — re-run to
+  recover, which is safe because Overwrite is idempotent). The **target table must already exist**
+  with a compatible schema; this job issues **no DDL**. Columns match **by name**, so Iceberg and
+  Doris column names must line up and the Iceberg types must map to compatible Doris types.
+- **Run**:
+  ```
+  DORIS_PASSWORD=… spark-submit --class com.yourteam.ingestion.IcebergMigrationJob \
+    target/spark-doris-ingestion.jar examples/migration-config.yaml
+  ```
+- **Validation (no Docker / no Doris / no metastore)**: the Iceberg read path is exercised in-JVM
+  against a real **HadoopCatalog** over a temp warehouse
+  ([`IcebergMigrationReadTest`](../src/test/java/com/yourteam/ingestion/IcebergMigrationReadTest.java)),
+  asserting the source schema/rows survive the read verbatim; the catalog conf and the Doris
+  option/mode wiring are asserted purely
+  ([`IcebergToDorisMigrationPipelineTest`](../src/test/java/com/yourteam/ingestion/IcebergToDorisMigrationPipelineTest.java),
+  [`MigrationConfigLoaderTest`](../src/test/java/com/yourteam/ingestion/config/MigrationConfigLoaderTest.java)).
+  The literal `.format("doris").save()` is the only line exercised solely on a real cluster.
+
+**Suite is 42 tests green** (9 new: 4 config-loader/validation, 3 pure catalog-conf, 2 in-JVM
+HadoopCatalog read).

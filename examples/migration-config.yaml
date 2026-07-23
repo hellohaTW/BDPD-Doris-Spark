@@ -1,0 +1,36 @@
+# Example config for the one-shot Iceberg -> Doris migration job.
+#   DORIS_PASSWORD=... spark-submit \
+#     --class com.yourteam.ingestion.IcebergMigrationJob \
+#     target/spark-doris-ingestion.jar /path/to/migration-config.yaml
+#
+# Same fat jar as the streaming ingestion job, different --class. Batch, not streaming:
+# it reads the whole Iceberg table once and OVERWRITES the Doris target, then exits.
+
+iceberg:
+  catalog_name: "iceberg"             # Spark catalog name to register the source under
+  catalog_type: "hive"                # hive (default) | hadoop | rest
+  uri: "thrift://metastore:9083"      # Hive Metastore thrift URI (required for a hive catalog)
+  # warehouse: "s3a://warehouse/"     # required for a hadoop catalog; optional override otherwise
+  database: "lake"                    # source Iceberg namespace
+  table: "orders"                     # source Iceberg table
+  properties:                         # optional; extra catalog props, keyed by the suffix after
+    io-impl: "org.apache.iceberg.aws.s3.S3FileIO"   #   spark.sql.catalog.<name>.
+    # s3.endpoint: "http://minio:9000"
+
+doris:
+  fenodes: "doris-fe:8030"
+  database: "ods"
+  table: "orders"                     # must already exist with a schema compatible with the source;
+                                      #   this job issues no DDL. Columns match by NAME.
+  user: "ingest"
+  password_env: "DORIS_PASSWORD"      # optional: env var holding the password (never inline it).
+                                      #   omit it, or leave the var unset, for an empty password.
+  options:                            # optional; passed to the Doris writer VERBATIM (doris.* keys)
+    doris.sink.batch.size: "100000"
+    doris.sink.max-retries: "3"
+
+spark:                                # optional
+  extra_conf:                         #   applied to the SparkSession via .config(k, v)
+    spark.sql.shuffle.partitions: "16"
+    # spark.master: "local[*]"        # set ONLY when running via `java -jar` off-cluster;
+                                      #   omit on a cluster (spark-submit supplies --master)

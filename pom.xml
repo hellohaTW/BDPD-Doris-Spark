@@ -19,6 +19,9 @@
         <scala.binary.version>2.12</scala.binary.version>
         <spark.version>3.5.1</spark.version>
         <doris.connector.version>25.1.0</doris.connector.version>
+        <!-- Iceberg runtime for the one-shot Iceberg -> Doris migration job. Bundled into the fat
+             jar (like the Doris connector) so spark-submit needs no extra packages flag. -->
+        <iceberg.version>1.6.1</iceberg.version>
         <!-- Pinned to Spark 3.5's bundled Jackson to avoid conflicts -->
         <jackson.version>2.15.2</jackson.version>
         <lombok.version>1.18.32</lombok.version>
@@ -54,6 +57,14 @@
             <groupId>org.apache.doris</groupId>
             <artifactId>spark-doris-connector-spark-3.5</artifactId>
             <version>${doris.connector.version}</version>
+        </dependency>
+        <!-- Iceberg source for the migration job. The spark-runtime artifact is self-contained
+             (its transitive deps are shaded/relocated inside it), so it does not disturb the
+             pinned Jackson. On the test classpath it also powers the in-JVM HadoopCatalog test. -->
+        <dependency>
+            <groupId>org.apache.iceberg</groupId>
+            <artifactId>iceberg-spark-runtime-3.5_${scala.binary.version}</artifactId>
+            <version>${iceberg.version}</version>
         </dependency>
 
         <!-- ===== Config (YAML) — pinned to Spark's Jackson ===== -->
