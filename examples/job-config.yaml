@@ -1,0 +1,39 @@
+# Example job config. Copy & edit per job, then (after Task 3) launch with:
+#   DORIS_PASSWORD=... java -jar target/spark-doris-ingestion.jar /path/to/job-config.yaml
+#
+# The same fat jar runs any job — only this file changes.
+
+kafka:
+  bootstrap_servers: "kafka-1:9092,kafka-2:9092"
+  topic: "orders"
+  starting_offsets: "latest"          # optional, default: latest
+  max_offsets_per_trigger: 100000     # optional, omit for unbounded
+
+doris:
+  fenodes: "doris-fe:8030"
+  database: "ods"
+  table: "orders_raw"                 # must have the fixed 7-column layout
+  user: "ingest"
+  password_env: "DORIS_PASSWORD"      # optional: env var holding the password (never inline it).
+                                      #   omit it, or leave the var unset, for an empty password.
+  options:                            # optional; passed to the Doris writer VERBATIM,
+    doris.sink.batch.size: "100000"   #   so use the connector's full option keys (doris.*)
+    doris.sink.max-retries: "3"
+
+spark:
+  checkpoint_location: "s3a://my-bucket/checkpoints/orders"
+  output_mode: "append"               # optional, default: append
+  trigger: "30 seconds"               # optional: "30 seconds" | "once" | "availableNow" | omit
+  extra_conf:                         # optional, applied to the SparkSession via .config(k, v)
+    spark.sql.shuffle.partitions: "8"
+    # spark.master: "local[*]"        # set ONLY when running via `java -jar` off-cluster;
+                                       # omit on a cluster (spark-submit supplies --master)
+
+retry:                                # optional; restart the query on transient failures.
+  max_restarts: 5                     #   consecutive restarts before giving up (-1 = unlimited)
+  initial_backoff_seconds: 5          #   backoff before the first restart
+  max_backoff_seconds: 300            #   cap the (exponential) backoff grows to
+  backoff_multiplier: 2.0             #   backoff *= this after each restart
+  reset_after_seconds: 600            #   a query healthy this long resets the restart counter
+  # Restarts resume from the checkpoint, so no data is lost. For per-write retries inside a
+  # batch, also set the connector's doris.sink.max-retries under doris.options above.

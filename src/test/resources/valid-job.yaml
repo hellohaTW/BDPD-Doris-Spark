@@ -1,0 +1,30 @@
+# A complete, valid job config used by ConfigLoaderTest.
+kafka:
+  bootstrap_servers: "localhost:9092"
+  topic: "orders"
+  starting_offsets: "earliest"
+  max_offsets_per_trigger: 1000
+
+doris:
+  fenodes: "127.0.0.1:8030"
+  database: "ods"
+  table: "orders_raw"
+  user: "root"
+  password_env: "DORIS_PASSWORD"
+  options:
+    sink.batch.size: "10000"
+    sink.max-retries: "3"
+
+spark:
+  checkpoint_location: "/tmp/ckpt/orders"
+  output_mode: "append"
+  trigger: "30 seconds"
+  extra_conf:
+    spark.sql.shuffle.partitions: "4"
+
+retry:
+  max_restarts: 10
+  initial_backoff_seconds: 3
+  max_backoff_seconds: 120
+  backoff_multiplier: 1.5
+  reset_after_seconds: 300
