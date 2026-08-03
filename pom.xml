@@ -46,6 +46,16 @@
             <version>${spark.version}</version>
             <scope>provided</scope>
         </dependency>
+        <!-- Supplies the Hive Metastore client that Iceberg's HiveCatalog calls into (the
+             iceberg-spark-runtime jar ships HiveCatalog but NOT the metastore client). Standard
+             Spark distributions bundle this, so it stays provided rather than fattening the jar;
+             declaring it makes the requirement of catalog_type=hive explicit. -->
+        <dependency>
+            <groupId>org.apache.spark</groupId>
+            <artifactId>spark-hive_${scala.binary.version}</artifactId>
+            <version>${spark.version}</version>
+            <scope>provided</scope>
+        </dependency>
 
         <!-- ===== Bundled into the fat jar ===== -->
         <dependency>

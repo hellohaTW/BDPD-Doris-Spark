@@ -153,12 +153,25 @@ migration-config.yaml ──► MigrationConfig ──► SparkSession (+ spark.
   [`Validatable`](../src/main/java/com/yourteam/ingestion/config/Validatable.java), so `ConfigLoader`
   parses/validates either through one generic `load(path, type)`. Example:
   [examples/migration-config.yaml](../examples/migration-config.yaml).
-- **Iceberg source**: read through a Spark v2 catalog. `catalog_type` defaults to **`hive`** (Hive
-  Metastore, `uri: thrift://…`); `hadoop` (needs `warehouse`) and `rest` are also accepted. The
-  `spark.sql.catalog.<name>.*` conf is built by
+- **Iceberg source**: read through a Spark v2 catalog. `catalog_type` defaults to **`hive`**;
+  `hadoop` (needs `warehouse`) and `rest` are also accepted. The `spark.sql.catalog.<name>.*` conf
+  is built by
   [`IcebergToDorisMigrationPipeline.icebergCatalogConf`](../src/main/java/com/yourteam/ingestion/IcebergToDorisMigrationPipeline.java)
   (pure, unit-tested). `iceberg-spark-runtime-3.5_2.12` is **bundled** into the fat jar (like the
   Doris connector), so `spark-submit` needs no extra packages flag.
+- **What this config deliberately does NOT hold — storage credentials and the metastore URI.** With
+  the default FileIO (`HadoopFileIO`, used whenever `io-impl` is unset) Iceberg reads through the
+  Hadoop FileSystem API, so `s3a://`/`hdfs://` pick up the cluster's existing settings —
+  `spark.hadoop.fs.s3a.{access.key,secret.key,endpoint}` in `spark-defaults.conf`, and
+  `hive.metastore.uris` in `hive-site.xml`. `iceberg.uri` is therefore **optional**: omit it to use
+  the cluster's metastore. Per-job overrides go in `spark.extra_conf` as `spark.hadoop.*`.
+  **Do not set `io-impl` to `S3FileIO`**: it swaps in Iceberg's own S3 client, which ignores the
+  `fs.s3a.*` settings (it wants separate `s3.access-key-id`/`s3.secret-access-key`) and needs the
+  AWS SDK, which this jar does not bundle.
+- **Cluster requirement for `catalog_type: hive`**: the `iceberg-spark-runtime` jar ships
+  `HiveCatalog` but *not* the Hive Metastore client it calls into. That comes from `spark-hive`,
+  declared `provided` in the pom — standard Spark distributions bundle it, so the fat jar stays
+  lean while the requirement is explicit in the build.
 - **Doris sink**: `SaveMode.Overwrite` — the connector **replaces the whole target table** (truncate
   then load; not an atomic swap, so a mid-write failure leaves the table empty/partial — re-run to
   recover, which is safe because Overwrite is idempotent). The **target table must already exist**
@@ -169,14 +182,17 @@ migration-config.yaml ──► MigrationConfig ──► SparkSession (+ spark.
   DORIS_PASSWORD=… spark-submit --class com.yourteam.ingestion.IcebergMigrationJob \
     target/spark-doris-ingestion.jar examples/migration-config.yaml
   ```
-- **Validation (no Docker / no Doris / no metastore)**: the Iceberg read path is exercised in-JVM
-  against a real **HadoopCatalog** over a temp warehouse
-  ([`IcebergMigrationReadTest`](../src/test/java/com/yourteam/ingestion/IcebergMigrationReadTest.java)),
-  asserting the source schema/rows survive the read verbatim; the catalog conf and the Doris
-  option/mode wiring are asserted purely
+- **Validation (no Docker / no Doris / no thrift server)**: both catalog paths are exercised in-JVM.
+  [`IcebergMigrationReadTest`](../src/test/java/com/yourteam/ingestion/IcebergMigrationReadTest.java)
+  reads through a real **HadoopCatalog** over a temp warehouse;
+  [`IcebergHiveCatalogReadTest`](../src/test/java/com/yourteam/ingestion/IcebergHiveCatalogReadTest.java)
+  covers the **hive** path that real deployments use, running the Hive Metastore client *embedded*
+  against in-memory Derby (both from the provided-scope `spark-hive`) — which also proves an omitted
+  `iceberg.uri` falls back to the ambient metastore settings. Both assert the source schema/rows
+  survive the read verbatim. The catalog conf and the Doris option/mode wiring are asserted purely
   ([`IcebergToDorisMigrationPipelineTest`](../src/test/java/com/yourteam/ingestion/IcebergToDorisMigrationPipelineTest.java),
   [`MigrationConfigLoaderTest`](../src/test/java/com/yourteam/ingestion/config/MigrationConfigLoaderTest.java)).
   The literal `.format("doris").save()` is the only line exercised solely on a real cluster.
 
-**Suite is 42 tests green** (9 new: 4 config-loader/validation, 3 pure catalog-conf, 2 in-JVM
-HadoopCatalog read).
+**Suite is 44 tests green** (11 new: 5 config-loader/validation, 3 pure catalog-conf, 2 in-JVM
+HadoopCatalog read, 1 in-JVM embedded-metastore Hive catalog read).

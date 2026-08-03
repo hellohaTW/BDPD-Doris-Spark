@@ -9,13 +9,21 @@
 iceberg:
   catalog_name: "iceberg"             # Spark catalog name to register the source under
   catalog_type: "hive"                # hive (default) | hadoop | rest
-  uri: "thrift://metastore:9083"      # Hive Metastore thrift URI (required for a hive catalog)
+  # uri: "thrift://metastore:9083"    # optional: Hive Metastore thrift URI. Omit it to use the
+                                      #   cluster's own hive.metastore.uris (hive-site.xml).
   # warehouse: "s3a://warehouse/"     # required for a hadoop catalog; optional override otherwise
   database: "lake"                    # source Iceberg namespace
   table: "orders"                     # source Iceberg table
-  properties:                         # optional; extra catalog props, keyed by the suffix after
-    io-impl: "org.apache.iceberg.aws.s3.S3FileIO"   #   spark.sql.catalog.<name>.
-    # s3.endpoint: "http://minio:9000"
+  # properties:                       # optional; extra catalog props, keyed by the suffix after
+  #   clients: "5"                    #   spark.sql.catalog.<name>. (e.g. HMS client pool size)
+  #
+  # Storage credentials do NOT belong here. With the default FileIO (HadoopFileIO) Iceberg reads
+  # through the Hadoop FileSystem API, so s3a://, hdfs:// etc. pick up the cluster's existing
+  # settings — typically spark.hadoop.fs.s3a.{access.key,secret.key,endpoint} in
+  # spark-defaults.conf. Leave io-impl unset to keep that behaviour: setting it to S3FileIO
+  # switches to Iceberg's own S3 client, which IGNORES those fs.s3a settings (it wants a separate
+  # s3.access-key-id/s3.secret-access-key) and needs the AWS SDK, which this jar does not bundle.
+  # To override a Hadoop setting for this job only, use spark.extra_conf below (spark.hadoop.*).
 
 doris:
   fenodes: "doris-fe:8030"
@@ -34,3 +42,6 @@ spark:                                # optional
     spark.sql.shuffle.partitions: "16"
     # spark.master: "local[*]"        # set ONLY when running via `java -jar` off-cluster;
                                       #   omit on a cluster (spark-submit supplies --master)
+    # spark.hadoop.fs.s3a.endpoint: "http://minio:9000"   # per-job override of a cluster Hadoop
+    # spark.hadoop.fs.s3a.path.style.access: "true"       #   setting; normally these live in
+                                                          #   spark-defaults.conf instead.
