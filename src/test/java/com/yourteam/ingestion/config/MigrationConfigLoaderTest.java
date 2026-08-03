@@ -8,7 +8,6 @@ import java.util.Collections;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -81,7 +80,7 @@ class MigrationConfigLoaderTest {
 
     @Test
     void failsFastListingEveryMissingRequiredField() {
-        // Missing iceberg.table and doris.fenodes.
+        // Missing iceberg.table and doris.fenodes; hive catalog with no uri.
         String bad =
                 "iceberg:\n"
                         + "  catalog_name: \"iceberg\"\n"
@@ -95,24 +94,25 @@ class MigrationConfigLoaderTest {
                 () -> ConfigLoader.load(yaml(bad), MigrationConfig.class));
         String msg = ex.getMessage();
         assertTrue(msg.contains("iceberg.table"), msg);
+        assertTrue(msg.contains("iceberg.uri"), msg);
         assertTrue(msg.contains("doris.fenodes"), msg);
     }
 
     @Test
-    void hiveCatalogAcceptsOmittedUriFallingBackToClusterHiveSite() {
-        // Deployments usually keep hive.metastore.uris in hive-site.xml, so an omitted uri is valid
-        // (mirrors how storage credentials come from spark-defaults.conf rather than this file).
-        MigrationConfig cfg = ConfigLoader.load(yaml(
+    void hiveCatalogRequiresUriEvenWhenTheClusterHasOne() {
+        // The metastore is named explicitly in this file rather than inherited from hive-site.xml,
+        // so omitting it fails fast instead of silently resolving against the wrong metastore.
+        String noUri =
                 "iceberg:\n"
                         + "  catalog_name: \"iceberg\"\n"
                         + "  catalog_type: \"hive\"\n"
                         + "  database: \"lake\"\n"
                         + "  table: \"orders\"\n"
-                        + "doris: {fenodes: fe, database: ods, table: t, user: u}\n"),
-                MigrationConfig.class);
+                        + "doris: {fenodes: fe, database: ods, table: t, user: u}\n";
 
-        assertNull(cfg.getIceberg().getUri());
-        assertEquals("hive", cfg.getIceberg().resolvedCatalogType());
+        ConfigException ex = assertThrows(ConfigException.class,
+                () -> ConfigLoader.load(yaml(noUri), MigrationConfig.class));
+        assertTrue(ex.getMessage().contains("iceberg.uri"), ex.getMessage());
     }
 
     @Test

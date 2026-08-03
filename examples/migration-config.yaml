@@ -9,8 +9,9 @@
 iceberg:
   catalog_name: "iceberg"             # Spark catalog name to register the source under
   catalog_type: "hive"                # hive (default) | hadoop | rest
-  # uri: "thrift://metastore:9083"    # optional: Hive Metastore thrift URI. Omit it to use the
-                                      #   cluster's own hive.metastore.uris (hive-site.xml).
+  uri: "thrift://metastore:9083"      # Hive Metastore thrift URI — required for a hive catalog.
+                                      #   Named explicitly here (not inherited from hive-site.xml)
+                                      #   so a missing/wrong metastore fails fast at startup.
   # warehouse: "s3a://warehouse/"     # required for a hadoop catalog; optional override otherwise
   database: "lake"                    # source Iceberg namespace
   table: "orders"                     # source Iceberg table

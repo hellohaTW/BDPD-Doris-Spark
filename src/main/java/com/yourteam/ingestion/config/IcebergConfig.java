@@ -30,9 +30,9 @@ public class IcebergConfig {
     String catalogType = "hive";
 
     /**
-     * Optional. Hive Metastore thrift URI, e.g. {@code thrift://metastore:9083}. Omit it to use the
-     * cluster's own {@code hive.metastore.uris} (from {@code hive-site.xml} / spark-defaults) —
-     * the same way storage credentials come from the cluster rather than this file.
+     * Hive Metastore thrift URI, e.g. {@code thrift://metastore:9083}. Required for a hive catalog:
+     * the metastore is named explicitly here rather than inherited from the cluster, so a missing
+     * URI fails fast instead of silently resolving against the wrong (or no) metastore.
      */
     String uri;
 
@@ -73,8 +73,9 @@ public class IcebergConfig {
             missing.add("iceberg.table");
         }
         String type = resolvedCatalogType();
-        // iceberg.uri is optional even for a hive catalog: an omitted URI falls back to the
-        // cluster's hive.metastore.uris (hive-site.xml), which is how most deployments configure it.
+        if ("hive".equalsIgnoreCase(type) && Configs.isBlank(uri)) {
+            missing.add("iceberg.uri (required for a hive catalog)");
+        }
         if ("hadoop".equalsIgnoreCase(type) && Configs.isBlank(warehouse)) {
             missing.add("iceberg.warehouse (required for a hadoop catalog)");
         }

@@ -24,10 +24,15 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 /**
  * Exercises the {@code catalog_type: hive} path — the one real deployments use — in-JVM, with no
  * Docker and no thrift server. The Hive Metastore client runs <em>embedded</em> against a local
- * Derby database (both supplied by the provided-scope {@code spark-hive}), which is what Iceberg's
- * HiveCatalog talks to when {@code hive.metastore.uris} is empty. That covers the piece the
- * HadoopCatalog test cannot: that HiveCatalog resolves, and that an omitted {@code iceberg.uri}
- * correctly falls back to the cluster's own metastore settings.
+ * Derby database (both supplied by the provided-scope {@code spark-hive}), covering what the
+ * HadoopCatalog test cannot: that {@code HiveCatalog} resolves and reads through the production
+ * wiring, and so that the Hive Metastore client really is on the classpath.
+ *
+ * <p>An embedded metastore is reached by leaving {@code hive.metastore.uris} empty, so this test
+ * builds its {@link IcebergConfig} without a {@code uri} (via the builder, which does not run
+ * validation). In production {@code iceberg.uri} is required — that rule is asserted separately in
+ * {@code MigrationConfigLoaderTest}. Connecting over thrift is therefore the one part of the hive
+ * path still exercised only against a real metastore.
  */
 class IcebergHiveCatalogReadTest {
 
@@ -37,7 +42,8 @@ class IcebergHiveCatalogReadTest {
 
     @BeforeAll
     static void startSpark(@TempDir Path tmp) {
-        // No uri: the catalog must fall back to the ambient hive.metastore.uris (empty => embedded).
+        // No uri, so the client resolves the ambient hive.metastore.uris — empty here, which is how
+        // an embedded metastore is selected. Production configs must set iceberg.uri (validated).
         iceberg = IcebergConfig.builder()
                 .catalogName(CATALOG)
                 .catalogType("hive")

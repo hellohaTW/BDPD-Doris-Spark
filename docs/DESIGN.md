@@ -159,15 +159,16 @@ migration-config.yaml ──► MigrationConfig ──► SparkSession (+ spark.
   [`IcebergToDorisMigrationPipeline.icebergCatalogConf`](../src/main/java/com/yourteam/ingestion/IcebergToDorisMigrationPipeline.java)
   (pure, unit-tested). `iceberg-spark-runtime-3.5_2.12` is **bundled** into the fat jar (like the
   Doris connector), so `spark-submit` needs no extra packages flag.
-- **What this config deliberately does NOT hold — storage credentials and the metastore URI.** With
-  the default FileIO (`HadoopFileIO`, used whenever `io-impl` is unset) Iceberg reads through the
-  Hadoop FileSystem API, so `s3a://`/`hdfs://` pick up the cluster's existing settings —
-  `spark.hadoop.fs.s3a.{access.key,secret.key,endpoint}` in `spark-defaults.conf`, and
-  `hive.metastore.uris` in `hive-site.xml`. `iceberg.uri` is therefore **optional**: omit it to use
-  the cluster's metastore. Per-job overrides go in `spark.extra_conf` as `spark.hadoop.*`.
-  **Do not set `io-impl` to `S3FileIO`**: it swaps in Iceberg's own S3 client, which ignores the
-  `fs.s3a.*` settings (it wants separate `s3.access-key-id`/`s3.secret-access-key`) and needs the
-  AWS SDK, which this jar does not bundle.
+- **Storage credentials are NOT in this config — the metastore URI is.** With the default FileIO
+  (`HadoopFileIO`, used whenever `io-impl` is unset) Iceberg reads through the Hadoop FileSystem
+  API, so `s3a://`/`hdfs://` pick up the cluster's existing
+  `spark.hadoop.fs.s3a.{access.key,secret.key,endpoint}` from `spark-defaults.conf`; per-job
+  overrides go in `spark.extra_conf` as `spark.hadoop.*`. **Do not set `io-impl` to `S3FileIO`**:
+  it swaps in Iceberg's own S3 client, which ignores those `fs.s3a.*` settings (it wants separate
+  `s3.access-key-id`/`s3.secret-access-key`) and needs the AWS SDK, which this jar does not bundle.
+  The metastore is the deliberate exception: `iceberg.uri` is **required** for a hive catalog and
+  named explicitly here rather than inherited from `hive-site.xml`, so a missing or wrong metastore
+  fails fast at startup instead of resolving somewhere unintended.
 - **Cluster requirement for `catalog_type: hive`**: the `iceberg-spark-runtime` jar ships
   `HiveCatalog` but *not* the Hive Metastore client it calls into. That comes from `spark-hive`,
   declared `provided` in the pom — standard Spark distributions bundle it, so the fat jar stays
@@ -187,9 +188,11 @@ migration-config.yaml ──► MigrationConfig ──► SparkSession (+ spark.
   reads through a real **HadoopCatalog** over a temp warehouse;
   [`IcebergHiveCatalogReadTest`](../src/test/java/com/yourteam/ingestion/IcebergHiveCatalogReadTest.java)
   covers the **hive** path that real deployments use, running the Hive Metastore client *embedded*
-  against in-memory Derby (both from the provided-scope `spark-hive`) — which also proves an omitted
-  `iceberg.uri` falls back to the ambient metastore settings. Both assert the source schema/rows
-  survive the read verbatim. The catalog conf and the Doris option/mode wiring are asserted purely
+  against in-memory Derby (both from the provided-scope `spark-hive`) — proving `HiveCatalog`
+  resolves and that its metastore client is really on the classpath. An embedded metastore is
+  selected by leaving the URI empty, so connecting over thrift is the one part of the hive path
+  still exercised only against a real metastore. Both assert the source schema/rows survive the
+  read verbatim. The catalog conf and the Doris option/mode wiring are asserted purely
   ([`IcebergToDorisMigrationPipelineTest`](../src/test/java/com/yourteam/ingestion/IcebergToDorisMigrationPipelineTest.java),
   [`MigrationConfigLoaderTest`](../src/test/java/com/yourteam/ingestion/config/MigrationConfigLoaderTest.java)).
   The literal `.format("doris").save()` is the only line exercised solely on a real cluster.
